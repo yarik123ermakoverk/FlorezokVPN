@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlorezokVPN — Премиум VPN сервис</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            900: '#07090e',
+                            800: '#0f172a',
+                            700: '#1e293b',
+                            600: '#334155'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #07090e;
+            color: #f8fafc;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .glass {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glow-indigo {
+            box-shadow: 0 0 40px -10px rgba(99, 102, 241, 0.35);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+    <!-- Навигация -->
+    <header class="glass sticky top-0 z-50 border-b border-white/5">
+        <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+            <!-- Логотип (Пасхалка для админки по 3 кликам) -->
+            <div id="logoClicker" class="flex items-center space-x-2.5 cursor-pointer select-none">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                    <i class="fa-solid fa-shield-halved text-white text-sm"></i>
+                </div>
+                <span class="text-lg font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent">Florezok<span class="text-indigo-400">VPN</span></span>
+            </div>
+
+            <!-- Десктоп меню -->
+            <nav class="hidden md:flex items-center space-x-8 text-sm font-medium text-gray-300">
+                <a href="#features" class="hover:text-indigo-400 transition">Преимущества</a>
+                <a href="#pricing" class="hover:text-indigo-400 transition">Тарифы</a>
+                <a href="#guide" class="hover:text-indigo-400 transition">Инструкция</a>
+            </nav>
+
+            <!-- Кнопки в шапке -->
+            <div class="flex items-center space-x-3">
+                <div id="guestNav" class="flex items-center space-x-2">
+                    <button onclick="openModal('loginModal')" class="text-xs sm:text-sm font-semibold text-gray-300 hover:text-white px-3 py-2 transition">Войти</button>
+                    <button onclick="openModal('registerModal')" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-xl shadow-lg shadow-indigo-600/25 transition">Регистрация</button>
+                </div>
+                <div id="userNav" class="hidden flex items-center space-x-2">
+                    <button onclick="openProfile()" class="flex items-center space-x-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl hover:border-indigo-500 transition">
+                        <i class="fa-solid fa-circle-user text-indigo-400 text-base"></i>
+                        <span id="navUsername" class="text-xs sm:text-sm font-bold max-w-[100px] truncate">Аккаунт</span>
+                    </button>
+                    <button onclick="logout()" class="text-gray-400 hover:text-red-400 p-2 transition" title="Выйти"><i class="fa-solid fa-right-from-bracket text-sm"></i></button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Главный экран (Hero) -->
+    <section class="relative overflow-hidden py-16 sm:py-24 px-4 text-center">
+        <!-- Фоновые градиентные круги -->
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 sm:w-96 h-72 sm:h-96 bg-indigo-600/20 blur-[120px] rounded-full pointer-events-none"></div>
+
+        <div class="max-w-3xl mx-auto relative z-10">
+            <div class="inline-flex items-center space-x-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-3.5 py-1 mb-6 text-indigo-300 text-xs sm:text-sm font-semibold">
+                <i class="fa-solid fa-bolt-lightning text-indigo-400"></i>
+                <span>Высокая скорость • Протокол VLESS</span>
+            </div>
+            <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight mb-5 leading-tight">
+                Быстрый интернет <br class="hidden sm:inline"><span class="bg-gradient-to-r from-indigo-400 via-indigo-200 to-purple-400 bg-clip-text text-transparent">без цензуры и блокировок</span>
+            </h1>
+            <p class="text-sm sm:text-base text-gray-400 max-w-xl mx-auto mb-8 leading-relaxed">
+                Защити свои данные, обходи любые ограничения и наслаждайся стабильным соединением на всех устройствах через приложение Happ.
+            </p>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-3.5 w-full max-w-md mx-auto">
+                <a href="#pricing" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold px-7 py-3.5 rounded-xl shadow-xl shadow-indigo-600/30 transition text-center text-sm">Выбрать тариф</a>
+                <button onclick="orderTestKey()" class="w-full sm:w-auto bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10 font-bold px-7 py-3.5 rounded-xl transition text-center text-sm">Тест на 3 дня</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Преимущества -->
+    <section id="features" class="max-w-6xl mx-auto px-4 py-12">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="glass p-5 rounded-2xl border border-white/5">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center mb-4"><i class="fa-solid fa-gauge-high"></i></div>
+                <h3 class="font-bold text-base mb-1">Без просадок скорости</h3>
+                <p class="text-xs text-gray-400 leading-relaxed">Оптимизированные каналы связи обеспечивают пинг как без VPN.</p>
+            </div>
+            <div class="glass p-5 rounded-2xl border border-white/5">
+                <div class="w-10 h-10 rounded-xl bg-purple-600/20 text-purple-400 flex items-center justify-center mb-4"><i class="fa-solid fa-mobile-screen"></i></div>
+                <h3 class="font-bold text-base mb-1">Все платформы</h3>
+                <p class="text-xs text-gray-400 leading-relaxed">Работает на iOS, Android, Windows и macOS через удобный Happ.</p>
+            </div>
+            <div class="glass p-5 rounded-2xl border border-white/5">
+                <div class="w-10 h-10 rounded-xl bg-emerald-600/20 text-emerald-400 flex items-center justify-center mb-4"><i class="fa-solid fa-key"></i></div>
+                <h3 class="font-bold text-base mb-1">Личный ключ</h3>
+                <p class="text-xs text-gray-400 leading-relaxed">Уникальная ссылка подписки создается персонально для твоего аккаунта.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Тарифы -->
+    <section id="pricing" class="max-w-6xl mx-auto px-4 py-16">
+        <div class="text-center mb-12">
+            <h2 class="text-2xl sm:text-3xl font-extrabold mb-3">Тарифные планы</h2>
+            <p class="text-xs sm:text-sm text-gray-400">Выберите подходящий вариант подписки</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Тест -->
+            <div class="glass rounded-2xl p-6 flex flex-col justify-between border border-white/10 hover:border-indigo-500/40 transition">
+                <div>
+                    <span class="inline-block text-[11px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full mb-4">Старт</span>
+                    <h3 class="text-xl font-bold mb-1">Тестовый</h3>
+                    <div class="text-3xl font-black mb-5">0 ₽ <span class="text-xs font-normal text-gray-400">/ 3 дня</span></div>
+                    <ul class="space-y-2.5 text-xs text-gray-300 mb-6">
+                        <li class="flex items-center"><i class="fa-solid fa-check text-indigo-400 mr-2 text-xs"></i> Личный ключ подписки</li>
+                        <li class="flex items-center"><i class="fa-solid fa-check text-indigo-400 mr-2 text-xs"></i> Скорость до 1 Гбит/с</li>
+                        <li class="flex items-center"><i class="fa-solid fa-check text-indigo-400 mr-2 text-xs"></i> 1 устройство</li>
+                    </ul>
+                </div>
+                <button onclick="requestPlan('Тест (3 дня)', 0)" class="w-full bg-white/10 hover:bg-indigo-600 active:scale-95 py-3 rounded-xl font-bold text-xs transition">Получить тест</button>
+            </div>
+
+            <!-- Месяц -->
+            <div class="glass rounded-2xl p-6 flex flex-col justify-between border-2 border-indigo-500 relative glow-indigo">
+                <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[10px] font-extrabold px-3 py-0.5 rounded-full uppercase tracking-wider">Хит продаж</div>
+                <div>
+                    <span class="inline-block text-[11px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full mb-4">Месячный</span>
+                    <h3 class="text-xl font-bold mb-1">1 Месяц</h3>
+                    <div class="text-3xl font-black mb-5">150 ₽ <span class="text-xs font-normal text-gray-400">/ мес</span></div>
+                    <ul class="space-y-2.5 text-xs text-gray-300 mb-6">
+                        <li class="flex items-center"><i class="fa-solid fa-check text-indigo-400 mr-2 text-xs"></i> Личный ключ подписки</li>
+                        <li class="flex items-center"><i class="fa-solid fa-check text-indigo-400 mr-2 text-xs"></i> Безлимитный трафик</li>
+                        <li class="flex items-center"><i class="fa-solid fa-check text-indigo-400 mr-2 text-xs"></i> До 3 устройств</li>
+                        <li class="flex items-center"><i class="fa-solid fa-check text-indigo-400 mr-2 text-xs"></i> Поддержка 24/7</li>
+                    </ul>
+                </div>
+                <button onclick="requestPlan('1 Месяц', 150)" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 py-3 rounded-xl font-bold text-xs transition shadow-lg shadow-indigo-600/30">Заказать</button>
+            </div>
+
+            <!-- Год -->
+            <div class="glass rounded-2xl p-6 flex flex-col justify-between border border-white/10 hover:border-purple-500/40 transition">
+                <div>
+                    <span class="inline-block text-[11px] font-bold uppercase tracking-wider text-purple-400 bg-purple-500/10 px-3 py-1 rounded-full mb-4">Выгода 40%</span>
+                    <h3 class="text-xl font-bold mb-1">1 Год</h3>
+                    <div class="text-3xl font-black mb-5">1000 ₽ <span class="text-xs font-normal text-gray-400">/ год</span></div>
+                    <ul class="space-y-2.5 text-xs text-gray-300 mb-6">
+                        <li class="flex items-center"><i class="fa-solid fa-check text-purple-400 mr-2 text-xs"></i> Личный ключ подписки</li>
+                        <li class="flex items-center"><i class="fa-solid fa-check text-purple-400 mr-2 text-xs"></i> Приоритетный сервер</li>
+                        <li class="flex items-center"><i class="fa-solid fa-check text-purple-400 mr-2 text-xs"></i> До 5 устройств</li>
+                        <li class="flex items-center"><i class="fa-solid fa-check text-purple-400 mr-2 text-xs"></i> Экономия 800 ₽</li>
+                    </ul>
+                </div>
+                <button onclick="requestPlan('1 Год', 1000)" class="w-full bg-white/10 hover:bg-purple-600 active:scale-95 py-3 rounded-xl font-bold text-xs transition">Заказать</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Инструкция -->
+    <section id="guide" class="max-w-6xl mx-auto px-4 py-16 border-t border-white/5">
+        <div class="text-center mb-12">
+            <h2 class="text-2xl sm:text-3xl font-extrabold mb-3">Как подключиться?</h2>
+            <p class="text-xs sm:text-sm text-gray-400">Три простых шага за две минуты</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div class="glass p-6 rounded-2xl border border-white/5 text-center">
+                <div class="w-10 h-10 bg-indigo-600/20 text-indigo-400 rounded-xl flex items-center justify-center font-bold text-sm mx-auto mb-4">1</div>
+                <h3 class="font-bold text-sm mb-1">Создай аккаунт</h3>
+                <p class="text-xs text-gray-400">Зарегистрируйся на сайте и выбери удобный тариф.</p>
+            </div>
+            <div class="glass p-6 rounded-2xl border border-white/5 text-center">
+                <div class="w-10 h-10 bg-indigo-600/20 text-indigo-400 rounded-xl flex items-center justify-center font-bold text-sm mx-auto mb-4">2</div>
+                <h3 class="font-bold text-sm mb-1">Установи Happ</h3>
+                <p class="text-xs text-gray-400">Скачай приложение Happ из магазина на телефоне или ПК.</p>
+            </div>
+            <div class="glass p-6 rounded-2xl border border-white/5 text-center">
+                <div class="w-10 h-10 bg-indigo-600/20 text-indigo-400 rounded-xl flex items-center justify-center font-bold text-sm mx-auto mb-4">3</div>
+                <h3 class="font-bold text-sm mb-1">Вставь ключ</h3>
+                <p class="text-xs text-gray-400">Скопируй ссылку подписки из кабинета и добавь её в приложение.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Модалка Входа -->
+    <div id="loginModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="glass w-full max-w-sm p-6 rounded-3xl relative border border-white/10 shadow-2xl">
+            <button onclick="closeModal('loginModal')" class="absolute top-4 right-4 text-gray-400 hover:text-white w-8 h-8 rounded-full bg-white/5 flex items-center justify-center"><i class="fa-solid fa-xmark text-sm"></i></button>
+            <h3 class="text-xl font-extrabold mb-5">Вход в аккаунт</h3>
+            <form onsubmit="handleLogin(event)" class="space-y-3.5">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1.5 font-medium">Ник или имя</label>
+                    <input type="text" id="loginUsername" required class="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:border-indigo-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1.5 font-medium">Пароль</label>
+                    <input type="password" id="loginPassword" required class="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:border-indigo-500 transition">
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 py-3.5 rounded-xl font-bold text-sm transition shadow-lg shadow-indigo-600/25">Войти</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модалка Регистрации -->
+    <div id="registerModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="glass w-full max-w-sm p-6 rounded-3xl relative border border-white/10 shadow-2xl">
+            <button onclick="closeModal('registerModal')" class="absolute top-4 right-4 text-gray-400 hover:text-white w-8 h-8 rounded-full bg-white/5 flex items-center justify-center"><i class="fa-solid fa-xmark text-sm"></i></button>
+            <h3 class="text-xl font-extrabold mb-5">Регистрация</h3>
+            <form onsubmit="handleRegister(event)" class="space-y-3.5">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1.5 font-medium">Ваш ник (латиницей, например: ivan)</label>
+                    <input type="text" id="regUsername" required class="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:border-indigo-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1.5 font-medium">Пароль</label>
+                    <input type="password" id="regPassword" required class="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-3 text-sm focus:outline-none focus:border-indigo-500 transition">
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 py-3.5 rounded-xl font-bold text-sm transition shadow-lg shadow-indigo-600/25">Создать аккаунт</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модалка Личного кабинета -->
+    <div id="profileModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="glass w-full max-w-md p-6 rounded-3xl relative border border-white/10 shadow-2xl max-h-[90vh] flex flex-col">
+            <button onclick="closeModal('profileModal')" class="absolute top-4 right-4 text-gray-400 hover:text-white w-8 h-8 rounded-full bg-white/5 flex items-center justify-center"><i class="fa-solid fa-xmark text-sm"></i></button>
+            <h3 class="text-xl font-extrabold mb-4">Личный кабинет</h3>
+            
+            <div class="mb-5 bg-black/40 p-4 rounded-2xl border border-white/5">
+                <p class="text-xs text-gray-400">Пользователь: <span id="profileNameDisplay" class="font-bold text-white"></span></p>
+                <p class="text-xs text-gray-400 mt-1">Папка на GitHub: <code class="text-indigo-400">users/<span id="profileFolderDisplay"></span>/</code></p>
+            </div>
+
+            <div class="space-y-3 flex-1 overflow-y-auto pr-1">
+                <h4 class="font-bold text-sm text-gray-300">Ваши заказы и ключи:</h4>
+                <div id="userOrdersList" class="space-y-2.5">
+                    <!-- Заказы -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Скрытая Админ Панель -->
+    <div id="adminModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="glass w-full max-w-2xl p-6 rounded-3xl relative border border-indigo-500/40 shadow-2xl max-h-[90vh] flex flex-col">
+            <button onclick="closeModal('adminModal')" class="absolute top-4 right-4 text-gray-400 hover:text-white w-8 h-8 rounded-full bg-white/5 flex items-center justify-center"><i class="fa-solid fa-xmark text-sm"></i></button>
+            
+            <div class="flex items-center space-x-2.5 mb-5">
+                <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center"><i class="fa-solid fa-shield text-white text-xs"></i></div>
+                <h3 class="text-lg font-bold">Панель администратора</h3>
+            </div>
+
+            <div class="space-y-3 flex-1 overflow-y-auto pr-1" id="adminUsersList">
+                <!-- Клиенты подгружаются динамически -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Футер -->
+    <footer class="mt-auto border-t border-white/5 py-6 text-center text-xs text-gray-500">
+        <p>&copy; 2026 FlorezokVPN. Все права защищены.</p>
+    </footer>
+
+    <!-- Скрипты взаимодействия -->
+    <script>
+        let currentUser = localStorage.getItem('florezok_user') || null;
+        let usersDB = JSON.parse(localStorage.getItem('florezok_users_db')) || {};
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateNav();
+        });
+
+        function updateNav() {
+            if (currentUser) {
+                document.getElementById('guestNav').classList.add('hidden');
+                document.getElementById('userNav').classList.remove('hidden');
+                document.getElementById('navUsername').innerText = currentUser;
+            } else {
+                document.getElementById('guestNav').classList.remove('hidden');
+                document.getElementById('userNav').classList.add('hidden');
+            }
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        // Регистрация
+        function handleRegister(e) {
+            e.preventDefault();
+            let username = document.getElementById('regUsername').value.trim().toLowerCase();
+            let pass = document.getElementById('regPassword').value;
+
+            if (usersDB[username]) {
+                alert('Такой пользователь уже существует!');
+                return;
+            }
+
+            usersDB[username] = {
+                pass: pass,
+                orders: []
+            };
+            localStorage.setItem('florezok_users_db', JSON.stringify(usersDB));
+            
+            currentUser = username;
+            localStorage.setItem('florezok_user', currentUser);
+            
+            closeModal('registerModal');
+            updateNav();
+            alert(`Аккаунт успешно создан! Создана папка users/${username}/`);
+        }
+
+        // Вход
+        function handleLogin(e) {
+            e.preventDefault();
+            let username = document.getElementById('loginUsername').value.trim().toLowerCase();
+            let pass = document.getElementById('loginPassword').value;
+
+            if (!usersDB[username] || usersDB[username].pass !== pass) {
+                alert('Неверный ник или пароль!');
+                return;
+            }
+
+            currentUser = username;
+            localStorage.setItem('florezok_user', currentUser);
+            
+            closeModal('loginModal');
+            updateNav();
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('florezok_user');
+            updateNav();
+        }
+
+        // Заказ тарифа
+        function requestPlan(planName, price) {
+            if (!currentUser) {
+                alert('Сначала войдите или зарегистрируйтесь на сайте!');
+                openModal('loginModal');
+                return;
+            }
+
+            let order = {
+                plan: planName,
+                price: price,
+                status: price === 0 ? 'Выдан (Тест)' : 'Ожидает оплаты',
+                key: price === 0 ? `vless://test-key-${currentUser}@server:443?security=none#FlorezokVPN-${currentUser}` : null,
+                date: new Date().toLocaleDateString()
+            };
+
+            usersDB[currentUser].orders.push(order);
+            localStorage.setItem('florezok_users_db', JSON.stringify(usersDB));
+
+            if (price === 0) {
+                alert('Тестовая подписка оформлена, ключ добавлен в профиль!');
+            } else {
+                alert(`Заказ на тариф "${planName}" принят! Администратор свяжется с вами для оплаты, после чего выдаст ключ в личном кабинете.`);
+            }
+            openProfile();
+        }
+
+        function orderTestKey() {
+            requestPlan('Тест (3 дня)', 0);
+        }
+
+        // Открытие личного кабинета
+        function openProfile() {
+            if (!currentUser) return;
+            document.getElementById('profileNameDisplay').innerText = currentUser;
+            document.getElementById('profileFolderDisplay').innerText = currentUser;
+
+            let ordersList = document.getElementById('userOrdersList');
+            ordersList.innerHTML = '';
+
+            let userOrders = usersDB[currentUser].orders || [];
+            if (userOrders.length === 0) {
+                ordersList.innerHTML = '<p class="text-xs text-gray-500 py-2">У вас пока нет активных заказов.</p>';
+            } else {
+                userOrders.forEach(ord => {
+                    let div = document.createElement('div');
+                    div.className = 'bg-black/40 p-3 rounded-xl border border-white/5 text-xs space-y-2';
+                    div.innerHTML = `
+                        <div class="flex justify-between font-bold">
+                            <span>${ord.plan}</span>
+                            <span class="${ord.status.includes('Выдан') ? 'text-emerald-400' : 'text-amber-400'}">${ord.status}</span>
+                        </div>
+                        ${ord.key ? `<div class="bg-black/60 p-2 rounded border border-white/5 font-mono break-all text-indigo-300 text-[11px] select-all">Ключ: ${ord.key}</div>` : '<p class="text-gray-400 text-[11px]">Ожидайте проверки оплаты администратором.</p>'}
+                    `;
+                    ordersList.appendChild(div);
+                });
+            }
+            openModal('profileModal');
+        }
+
+        // Пасхалка админки (3 клика по логотипу)
+        let clickCount = 0;
+        document.getElementById('logoClicker').addEventListener('click', () => {
+            clickCount++;
+            if (clickCount >= 3) {
+                clickCount = 0;
+                openAdminPanel();
+            }
+        });
+
+        function openAdminPanel() {
+            let container = document.getElementById('adminUsersList');
+            container.innerHTML = '';
+
+            let usernames = Object.keys(usersDB);
+            if (usernames.length === 0) {
+                container.innerHTML = '<p class="text-xs text-gray-500 py-2">Пользователей пока нет.</p>';
+            } else {
+                usernames.forEach(username => {
+                    let uData = usersDB[username];
+                    let userDiv = document.createElement('div');
+                    userDiv.className = 'bg-black/40 p-3.5 rounded-xl border border-white/5 space-y-2.5 text-xs';
+                    
+                    let ordersHtml = '';
+                    if (uData.orders.length === 0) {
+                        ordersHtml = '<p class="text-gray-500 text-[11px]">Нет заказов</p>';
+                    } else {
+                        uData.orders.forEach((ord, idx) => {
+                            ordersHtml += `
+                                <div class="flex items-center justify-between bg-black/40 p-2 rounded border border-white/5">
+                                    <span class="font-medium">${ord.plan} — <span class="text-amber-300">${ord.status}</span></span>
+                                    ${!ord.key ? `<button onclick="adminGrantKey('${username}', ${idx})" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 px-2.5 py-1 rounded text-white font-bold text-[11px] transition">Выдать ключ</button>` : '<span class="text-emerald-400 font-bold">Ключ выдан</span>'}
+                                </div>
+                            `;
+                        });
+                    }
+
+                    userDiv.innerHTML = `
+                        <div class="flex justify-between items-center font-bold text-indigo-400">
+                            <span>👤 ${username}</span>
+                            <span class="text-[10px] text-gray-500 font-mono">users/${username}/subscription.txt</span>
+                        </div>
+                        <div class="space-y-1.5">${ordersHtml}</div>
+                    `;
+                    container.appendChild(userDiv);
+                });
+            }
+            openModal('adminModal');
+        }
+
+        function adminGrantKey(username, orderIdx) {
+            let key = prompt(`Введите рабочий VLESS ключ для пользователя ${username}:`, `vless://custom-key-${Math.random().toString(36).substring(2, 8)}@server:443?security=none#${username}`);
+            if (!key) return;
+
+            usersDB[username].orders[orderIdx].key = key;
+            usersDB[username].orders[orderIdx].status = 'Активна (Оплачено)';
+            localStorage.setItem('florezok_users_db', JSON.stringify(usersDB));
+            
+            alert('Ключ успешно выдан пользователю!');
+            openAdminPanel();
+        }
+    </script>
+</body>
+</html>
