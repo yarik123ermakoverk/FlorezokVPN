@@ -1,0 +1,18 @@
+name: Expire
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: sleep 60
+      - run: |
+          echo "vless://00000000-0000-0000-0000-000000000000@0.0.0.0:443?security=none#❌ ПОДПИСКА ИСТЕКЛА (05.05.2026)" > Florezok.txt
+          git config --global user.name "Bot"
+          git config --global user.email "bot@bot.com"
+          git add Florezok.txt
+          git commit -m "Expired"
+          git push
