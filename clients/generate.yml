@@ -1,0 +1,44 @@
+name: Generate Client Subscription
+on:
+  workflow_dispatch:
+    inputs:
+      client_name:
+        description: 'Имя клиента (например: ivan)'
+        required: true
+        type: string
+      vless_key:
+        description: 'VLESS ключ клиента'
+        required: true
+        type: string
+      expiry_date:
+        description: 'Дата окончания (ГГГГ-ММ-ДД)'
+        required: true
+        type: string
+
+jobs:
+  create-client:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Даем права на запись
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Create Client File
+        run: |
+          NAME="${{ github.event.inputs.client_name }}"
+          KEY="${{ github.event.inputs.vless_key }}"
+          DATE="${{ github.event.inputs.expiry_date }}"
+          
+          # Создаем папку на всякий случай и записываем ключ
+          mkdir -p clients
+          echo "$KEY" > "clients/${NAME}.txt"
+          
+          # Записываем дату в общий реестр
+          echo "$NAME|$DATE" >> clients_expiry.txt
+          sort -u clients_expiry.txt -o clients_expiry.txt
+
+          git config --global user.name "Auto Bot"
+          git config --global user.email "bot@github.local"
+          git add clients/${NAME}.txt clients_expiry.txt
+          git commit -m "Add/Update client: ${NAME}"
+          git push
