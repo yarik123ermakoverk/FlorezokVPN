@@ -1,0 +1,53 @@
+name: Daily Expiry Checker
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Запускается каждый день в полночь
+  workflow_dispatch: # Позволяет запустить вручную кнопкой
+
+jobs:
+  check-expirations:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Даем права на запись
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run Expiry Check
+        run: |
+          TODAY=$(date +%Y-%m-%d)
+          echo "Сегодняшняя дата: $TODAY"
+
+          if [ ! -f "clients_expiry.txt" ]; then
+            echo "Реестр clients_expiry.txt не найден."
+            exit 0
+          fi
+
+          CHANGES=0
+
+          while IFS='|' read -r CLIENT_NAME EXPIRY_DATE; do
+            [ -z "$CLIENT_NAME" ] && continue
+
+            echo "Проверяем клиента: $CLIENT_NAME (До: $EXPIRY_DATE)"
+
+            if [[ "$TODAY" > "$EXPIRY_DATE" || "$TODAY" == "$EXPIRY_DATE" ]]; then
+              CLIENT_FILE="clients/${CLIENT_NAME}.txt"
+              
+              if [ -f "$CLIENT_FILE" ]; then
+                echo "vless://00000000-0000-0000-0000-000000000000@0.0.0.0:443?security=none#❌ ПОДПИСКА ИСТЕКЛА" > "$CLIENT_FILE"
+                echo "⚠️ Подписка клиента $CLIENT_NAME истекла. Файл обновлен."
+                CHANGES=1
+              fi
+            fi
+          done < clients_expiry.txt
+
+          if [ "$CHANGES" -eq 1 ]; then
+            git config --global user.name "Expiry Bot"
+            git config --global user.email "bot@github.local"
+            git add clients/*.txt
+            git commit -m "Auto-expire overdue client subscriptions"
+            git push
+            echo "Изменения успешно отправлены в репозиторий."
+          else
+            echo "Просроченных подписок не обнаружено."
+          fi
