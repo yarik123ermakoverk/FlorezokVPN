@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "remarks": "Мой VPN (Подписка)",
+  "total": 100,
+  "download": 100,
+  "bytes_used": 100,
+  "expire": 1,
+  "userinfo": "upload=0; download=0; total=1073741824; expire=1",
+  "servers": [
+    {
+      "name": "❌ ПОДПИСКА ИСТЕКЛА (Прошла 1 минута)",
+      "type": "vless",
+      "server": "0.0.0.0",
+      "port": 0
+    }
+  ]
+}
