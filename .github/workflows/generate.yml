@@ -1,0 +1,60 @@
+name: Generate Client Subscription
+on:
+  workflow_dispatch:
+    inputs:
+      client_name:
+        description: 'Ник или имя клиента (например: ivan)'
+        required: true
+        type: string
+
+jobs:
+  create-user-folder:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Create User Folder & Subscription
+        run: |
+          NAME="${{ github.event.inputs.client_name }}"
+          
+          # Убираем лишние пробелы из имени
+          NAME=$(echo "$NAME" | tr -d ' ')
+          
+          if [ -z "$NAME" ]; then
+            echo "❌ Ошибка: Имя не может быть пустым!"
+            exit 1
+          fi
+
+          # Ищем первый свободный ключ из папки pool/ (или генерируем заглушку)
+          if [ -d "pool" ] && [ -n "$(ls -A pool/*.txt 2>/dev/null)" ]; then
+            FREE_FILE=$(find pool -name "*.txt" | head -n 1)
+            KEY_CONTENT=$(cat "$FREE_FILE")
+            # Удаляем использованный файл из пула
+            rm "$FREE_FILE"
+          else
+            # Если пула нет, создаем тестовый ключ на основе ника
+            KEY_CONTENT="vless://test-uuid-for-${NAME}@0.0.0.0:443?security=none#FlorezokVPN-${NAME}"
+          fi
+          
+          # Создаем папку users/{nickname}/
+          USER_DIR="users/${NAME}"
+          mkdir -p "$USER_DIR"
+          
+          # Записываем ключ в файл subscription.txt внутри этой папки
+          echo "$KEY_CONTENT" > "${USER_DIR}/subscription.txt"
+          
+          # Добавляем запись о сроке в общий реестр (например, 3 дня теста)
+          EXPIRE_DATE=$(date -d "+3 days" +%Y-%m-%d)
+          echo "${NAME}|${EXPIRE_DATE}" >> clients_expiry.txt
+          sort -u clients_expiry.txt -o clients_expiry.txt
+
+          # Отправляем изменения на GitHub
+          git config --global user.name "Auto User Bot"
+          git config --global user.email "bot@github.local"
+          git add users/ clients_expiry.txt pool/ || true
+          git commit -m "Auto-created folder and sub for user: ${NAME}"
+          git push
+          
+          echo "✅ Папка users/${NAME}/ и файл subscription.txt успешно созданы!"
