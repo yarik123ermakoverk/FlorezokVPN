@@ -1,21 +1,44 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 
 app.use(express.json());
 app.use(cors());
 
-// База данных пользователей: логин -> { password, expiresAt }
-const usersDatabase = {}; 
+const DB_FILE = path.join(__dirname, 'users.json');
 
-// Заглушка для тех, у кого подписка кончилась
+// Загрузка базы из файла при старте
+function loadDB() {
+    try {
+        if (fs.existsSync(DB_FILE)) {
+            const data = fs.readFileSync(DB_FILE, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (e) {
+        console.error("Ошибка чтения базы:", e);
+    }
+    return {};
+}
+
+// Сохранение базы в файл
+function saveDB(db) {
+    try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
+    } catch (e) {
+        console.error("Ошибка сохранения базы:", e);
+    }
+}
+
+let usersDatabase = loadDB();
+
 let globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF%20%E2%80%A2%20%D0%9F%D0%A0%D0%9E%D0%94%D0%9B%D0%98%D0%A2%D0%AC%20%D0%9D%D0%90%20%D0%A1%D0%90%D0%99%D0%A2%D0%95";
 
-// Полный список твоих серверов для всех с активной подпиской
 const defaultVlessKeys = [
     "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%201",
-    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%spisok...#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%202",
+    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%202",
     "vless://d16f7276-b967-440d-88b7-76945654ed55@188.225.79.22:443?encryption=none&security=reality&sni=quartzops.blog&fp=firefox&pbk=LqyEitRDFcMxFuH45Vx1551cOqrI6UHYvkKgs7gNaho&sid=e347493990237143&type=grpc&mode=gun&authority=&serviceName=grpc-baf3bc8498#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%203",
     "vless://d16f7276-b967-440d-88b7-76945654ed55@188.225.79.22:443?encryption=none&security=reality&sni=quartzops.blog&fp=firefox&pbk=LqyEitRDFcMxFuH45Vx1551cOqrI6UHYvkKgs7gNaho&sid=e347493990237143&type=grpc&mode=gun&authority=&serviceName=grpc-baf3bc8498#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%204",
     "vless://00d09ead-4080-4c39-a75d-be7dcabe77f4@217.19.122.170:8443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=bm9.hat.onl&fp=qq&pbk=Dx5aV0n9e1j_YDhVk8Z4O9HPrg1HLAuGKlmQpgERgDo&sid=8eeca41a32d1523d&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%205",
@@ -45,6 +68,7 @@ app.post('/api/auth/register', (req, res) => {
     if (usersDatabase[login]) return res.status(400).json({ success: false, message: 'Логин уже занят' });
 
     usersDatabase[login] = { password, expiresAt: 0 };
+    saveDB(usersDatabase);
     res.json({ success: true, message: 'Регистрация успешна' });
 });
 
@@ -71,7 +95,7 @@ app.get('/api/status/:username', (req, res) => {
     res.json({ active: true, timeLeftMs: user.expiresAt - Date.now() });
 });
 
-// Генерация ссылки подписки (если активна — все серверы, если нет — заглушка)
+// Ссылка подписки
 app.get('/api/sub/:username', (req, res) => {
     const login = req.params.username.trim();
     const user = usersDatabase[login];
@@ -92,7 +116,7 @@ app.get('/api/sub/:username', (req, res) => {
     return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
 });
 
-// --- АДМИНКА ---
+// Админка
 app.post('/api/admin/login', (req, res) => {
     const { username, password } = req.body;
     if (username === 'admin' && password === 'admin') {
@@ -118,7 +142,6 @@ app.get('/api/admin/clients', (req, res) => {
     res.json({ clients: list });
 });
 
-// Создание / продление подписки админом
 app.post('/api/admin/save-client', (req, res) => {
     const { username, days } = req.body;
     const login = username ? username.trim() : '';
@@ -134,12 +157,14 @@ app.post('/api/admin/save-client', (req, res) => {
     const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
     user.expiresAt = currentExpire + addDays * 24 * 60 * 60 * 1000;
 
+    saveDB(usersDatabase);
     res.json({ success: true });
 });
 
 app.post('/api/admin/delete-client', (req, res) => {
     const { username } = req.body;
     delete usersDatabase[username];
+    saveDB(usersDatabase);
     res.json({ success: true });
 });
 
