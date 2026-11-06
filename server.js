@@ -10,6 +10,7 @@ app.use(cors());
 const YOOKASSA_SHOP_ID = '1519153'; 
 const YOOKASSA_SECRET_KEY = 'Live_5uXug7x_gmbn-wWBRnzYhGviCtLZRs8mzOfHWOQL5f8'; 
 
+// База данных пользователей (ключ — ник в Telegram)
 const database = {};
 
 let globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF%20%E2%80%A2%20%D0%9F%D0%A0%D0%9E%D0%94%D0%9B%D0%98%D0%A2%D0%AC%20%D0%9D%D0%90%20%D0%A1%D0%90%D0%99%D0%A2%D0%95";
@@ -101,17 +102,16 @@ app.post('/api/yookassa-webhook', async (req, res) => {
             if (metadata && metadata.userId && metadata.durationMinutes) {
                 const tgUser = metadata.userId.replace('@', '').trim();
                 const durationMinutes = parseInt(metadata.durationMinutes);
-                const expiresAt = Date.now() + durationMinutes * 60 * 1000;
-
+                
                 if (!database[tgUser]) {
                     database[tgUser] = {
-                        expiresAt: expiresAt,
+                        expiresAt: Date.now(),
                         hiddenServers: [],
                         personalExpiredKey: null
                     };
-                } else {
-                    database[tgUser].expiresAt = expiresAt;
                 }
+                const baseTime = database[tgUser].expiresAt > Date.now() ? database[tgUser].expiresAt : Date.now();
+                database[tgUser].expiresAt = baseTime + durationMinutes * 60 * 1000;
 
                 console.log(`[ОПЛАТА УСПЕШНА] @${tgUser} выдано ${durationMinutes} минут.`);
             }
@@ -201,17 +201,28 @@ app.get('/api/admin/users', (req, res) => {
     res.json({ users: activeUsersList, defaultServersCount: defaultVlessKeys.length });
 });
 
+// Создание / продление подписки из админки
 app.post('/api/admin/update-user', (req, res) => {
     const { userId, addMinutes, expireNow } = req.body;
     const tgUser = userId ? userId.replace('@', '').trim() : null;
-    const user = database[tgUser];
+    
+    if (!tgUser) return res.status(400).json({ success: false, message: 'Не указан юзер' });
 
-    if (!user) return res.status(404).json({ success: false });
+    if (!database[tgUser]) {
+        database[tgUser] = {
+            expiresAt: Date.now(),
+            hiddenServers: [],
+            personalExpiredKey: null
+        };
+    }
+
+    const user = database[tgUser];
 
     if (expireNow) {
         user.expiresAt = 0;
     } else if (addMinutes) {
-        user.expiresAt += parseInt(addMinutes) * 60 * 1000;
+        const baseTime = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
+        user.expiresAt = baseTime + parseInt(addMinutes) * 60 * 1000;
     }
 
     res.json({ success: true });
