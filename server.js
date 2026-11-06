@@ -55,29 +55,34 @@ const defaultVlessKeys = [
     "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%D0%9E%D0%B1%D1%85%D0%BE%D0%B4_2"
 ];
 
-// Функция отправки сообщений в Telegram через чистый fetch
 async function sendTelegram(chatId, text, replyMarkup = null) {
     try {
         const body = { chat_id: chatId, text: text, parse_mode: 'Markdown' };
         if (replyMarkup) body.reply_markup = replyMarkup;
 
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-    } catch (e) {}
+        const data = await res.json();
+        console.log("SendTelegram response:", data);
+    } catch (e) {
+        console.error("SendTelegram error:", e);
+    }
 }
 
 async function checkChannelSubscription(userId) {
     try {
         const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChatMember?chat_id=${encodeURIComponent(CHANNEL_USERNAME)}&user_id=${userId}`);
         const data = await res.json();
+        console.log("CheckChannelSubscription data:", data);
         if (data.ok && data.result) {
             return ['creator', 'administrator', 'member'].includes(data.result.status);
         }
         return false;
     } catch (e) {
+        console.error("CheckChannelSubscription error:", e);
         return false;
     }
 }
@@ -213,6 +218,8 @@ app.get('/api/sub/:username', (req, res) => {
 app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
     res.sendStatus(200);
     const update = req.body;
+    console.log("Incoming Telegram update:", JSON.stringify(update));
+
     if (!update) return;
 
     if (update.message) {
@@ -338,7 +345,6 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
 app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🚀 Server started on port ${PORT}`);
-    // Автоматически устанавливаем вебхук для Telegram
     try {
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${BACKEND_URL}/bot${TELEGRAM_BOT_TOKEN}`);
     } catch(e) {}
