@@ -34,7 +34,7 @@ app.get('/api/status/:userId', (req, res) => {
     const user = database[userId];
 
     if (!user) {
-        return.json({ active: false, reason: 'not_found' });
+        return res.json({ active: false, reason: 'not_found' });
     }
 
     // Проверяем, не вышло ли время подписки
@@ -48,7 +48,7 @@ app.get('/api/status/:userId', (req, res) => {
     });
 });
 
-// Порт для запуска (HostGta автоматически передает порт через process.env.PORT, либо используем 3000)
+// Порт для запуска
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Сервер FlorezokVPN успешно запущен на порту ${PORT}`);
