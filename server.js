@@ -7,9 +7,10 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Подключение к MySQL с твоими данными
+// Подключение к твоей MySQL базе данных
+// Если база на удаленном хостинге, замени 'localhost' на IP или домен хостинга базы данных
 const pool = mysql.createPool({
-    host: 'localhost',
+    host: process.env.DB_HOST || 'localhost', 
     user: 'whg127619_',
     password: 'qwerty123',
     database: 'whg127619_',
@@ -31,7 +32,7 @@ async function initDB() {
         `);
         console.log("Таблица users успешно проверена/создана в MySQL.");
     } catch (e) {
-        console.error("Ошибка подключения к MySQL:", e);
+        console.error("Ошибка подключения к MySQL:", e.message);
     }
 }
 initDB();
@@ -58,7 +59,7 @@ app.post('/api/auth/register', async (req, res) => {
         await pool.query('INSERT INTO users (username, password, expires_at) VALUES (?, ?, 0)', [login, password]);
         res.json({ success: true, message: 'Регистрация успешна' });
     } catch (e) {
-        console.error(e);
+        console.error("Ошибка регистрации:", e);
         res.status(500).json({ success: false, message: 'Ошибка базы данных' });
     }
 });
@@ -76,7 +77,7 @@ app.post('/api/auth/login', async (req, res) => {
 
         res.json({ success: true, username: login });
     } catch (e) {
-        console.error(e);
+        console.error("Ошибка входа:", e);
         res.status(500).json({ success: false, message: 'Ошибка базы данных' });
     }
 });
@@ -146,7 +147,7 @@ app.get('/api/admin/clients', async (req, res) => {
     }
 });
 
-// Выдача/продление подписки админом (без пароля юзера)
+// Выдача/продление подписки админом
 app.post('/api/admin/save-client', async (req, res) => {
     try {
         const { username, days } = req.body;
