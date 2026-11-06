@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const { YooKassa } = require('@a2seven/yookassa');
 
 const app = express();
 
@@ -8,10 +7,8 @@ app.use(express.json());
 app.use(cors());
 
 // --- НАСТРОЙКИ ЮKASSA ---
-const yookassa = new YooKassa({
-    shopId: '1519153', // Обязательно вставь сюда цифры своего shopId (например: '123456')
-    secretKey: 'Live_5uXug7x_gmbn-wWBRnzYhGviCtLZRs8mzOfHWOQL5f8' // Твой боевой ключ
-});
+const YOOKASSA_SHOP_ID = '1519153'; // Вставь сюда цифры своего shopId (например: '123456')
+const YOOKASSA_SECRET_KEY = 'Live_5uXug7x_gmbn-wWBRnzYhGviCtLZRs8mzOfHWOQL5f8'; // Твой боевой ключ
 
 // База данных пользователей в памяти сервера
 const database = {};
@@ -43,7 +40,7 @@ const defaultVlessKeys = [
     "vless://255a8044-3337-473e-af26-46a37208adcc@194.55.239.86:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=piston.kachow.ink&fp=firefox&pbk=wl48cP9KpZxoAqUAePYqVmjNHO2gOzW_QCm3okkiLks&sid=87ac946b53bb52f5&type=tcp&headerType=none#%F0%9F%87%AA%F0%9F%87%AA%D0%AD%D1%81%D1%82%D0%BE%D0%BD%D0%B8%D1%8F"
 ];
 
-// 1. Создание платежа через ЮKassa
+// 1. Создание платежа в ЮKassa через стандартный fetch
 app.post('/api/create-payment', async (req, res) => {
     try {
         const { userId, durationMinutes, amount, description } = req.body;
@@ -52,24 +49,41 @@ app.post('/api/create-payment', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Неверные данные платежа' });
         }
 
-        const payment = await yookassa.createPayment({
-            amount: {
-                value: amount.toFixed(2),
-                currency: 'RUB'
+        const idempotenceKey = 'idempotence_' + Math.random().toString(36).substring(2, 15);
+        const authHeader = 'Basic ' + Buffer.from(`${YOOKASSA_SHOP_ID}:${YOOKASSA_SECRET_KEY}`).toString('base64');
+
+        const response = await fetch('https://api.yookassa.ru/v3/payments', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Idempotence-Key': idempotenceKey,
+                'Authorization': authHeader
             },
-            confirmation: {
-                type: 'redirect',
-                return_url: 'https://florezokvpn.onrender.com/' 
-            },
-            capture: true,
-            description: description || 'Оплата подписки FlorezokVPN',
-            metadata: {
-                userId: userId,
-                durationMinutes: durationMinutes
-            }
+            body: JSON.stringify({
+                amount: {
+                    value: amount.toFixed(2),
+                    currency: 'RUB'
+                },
+                confirmation: {
+                    type: 'redirect',
+                    return_url: 'https://florezokvpn.onrender.com/'
+                },
+                capture: true,
+                description: description || 'Оплата подписки FlorezokVPN',
+                metadata: {
+                    userId: userId,
+                    durationMinutes: durationMinutes
+                }
+            })
         });
 
-        res.json({ success: true, confirmationUrl: payment.confirmation.confirmation_url });
+        const payment = await response.json();
+
+        if (payment && payment.confirmation && payment.confirmation.confirmation_url) {
+            res.json({ success: true, confirmationUrl: payment.confirmation.confirmation_url });
+        } else {
+            res.status(400).json({ success: false, message: 'Ошибка ответа ЮKassa', error: payment });
+        }
     } catch (e) {
         console.error("Ошибка создания платежа в ЮKassa:", e);
         res.status(500).json({ success: false, message: 'Ошибка платежного шлюза' });
