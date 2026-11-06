@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const TELEGRAM_BOT_TOKEN = '9147658037:AAEaYJ56epN4hTrJXEqWm6PTC7qwO3WI7SE';
-const CHANNEL_USERNAME = '@Florezok_VPN';
+const CHANNEL_URL = 'https://t.me/Florezok_VPN';
 const PORT = process.env.PORT || 3000;
 const BACKEND_URL = 'https://florezokvpn.onrender.com';
 
@@ -68,19 +68,6 @@ async function sendTelegram(chatId, text, replyMarkup = null) {
     } catch (e) {}
 }
 
-async function checkChannelSubscription(userId) {
-    try {
-        const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChatMember?chat_id=${encodeURIComponent(CHANNEL_USERNAME)}&user_id=${userId}`);
-        const data = await res.json();
-        if (data.ok && data.result) {
-            return ['creator', 'administrator', 'member'].includes(data.result.status);
-        }
-        return false;
-    } catch (e) {
-        return false;
-    }
-}
-
 function grantTrial(username, chatId) {
     usersDatabase = loadDB();
     const userKey = username.toLowerCase();
@@ -99,7 +86,7 @@ function grantTrial(username, chatId) {
 
     const subUrl = `${BACKEND_URL}/api/sub/${userKey}`;
     sendTelegram(chatId, 
-        `🎉 **Вам успешно зачислена пробная подписка на 5 дней!**\n\n` +
+        `🎉 **Пробная подписка на 5 дней успешно активирована!**\n\n` +
         `🔗 **Ваша ссылка подписки:**\n\`${subUrl}\``
     );
 }
@@ -248,24 +235,18 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
             };
             await sendTelegram(chatId, tariffsText, inlineKeyboard);
         } else if (text.includes('Пробная подписка') || text.includes('пробн')) {
-            // Проверка подписки с защитой от сбоев
-            const isSubscribed = await checkChannelSubscription(userId);
-            if (!isSubscribed) {
-                const channelKb = {
-                    inline_keyboard: [
-                        [{ text: '📢 Подписаться на канал', url: 'https://t.me/Florezok_VPN' }],
-                        [{ text: '✅ Я подписался', callback_data: 'check_sub_trial' }]
-                    ]
-                };
-                await sendTelegram(chatId, 
-                    `🔔 **Чтобы получить пробную подписку, необходимо подписаться на наш Telegram-канал!**\n\n` +
-                    `1. Подпишитесь на канал: ${CHANNEL_USERNAME}\n` +
-                    `2. Нажмите кнопку **«✅ Я подписался»** ниже для проверки.`, 
-                    channelKb
-                );
-                return;
-            }
-            grantTrial(username, chatId);
+            const channelKb = {
+                inline_keyboard: [
+                    [{ text: '📢 Подписаться на канал', url: CHANNEL_URL }],
+                    [{ text: '✅ Я подписался', callback_data: 'claim_trial' }]
+                ]
+            };
+            await sendTelegram(chatId, 
+                `🔔 **Получение пробной подписки на 5 дней:**\n\n` +
+                `1. Подпишитесь на наш официальный канал\n` +
+                `2. Нажмите кнопку **«✅ Я подписался»** ниже.`, 
+                channelKb
+            );
         } else if (text === '👤 Мой профиль') {
             usersDatabase = loadDB();
             const user = usersDatabase[username];
@@ -309,29 +290,20 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
         const chatId = query.message.chat.id;
         const username = query.from.username ? query.from.username.toLowerCase() : `tg_${userId}`;
 
-        if (query.data === 'check_sub_trial') {
-            const isSubscribed = await checkChannelSubscription(userId);
-            if (isSubscribed) {
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+        if (query.data === 'claim_trial') {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ callback_query_id: query.id, text: '✅ Подписка активирована!' })
+            });
+            try {
+                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteMessage`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ callback_query_id: query.id, text: '✅ Подписка подтверждена!' })
+                    body: JSON.stringify({ chat_id: chatId, message_id: query.message.message_id })
                 });
-                try {
-                    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteMessage`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ chat_id: chatId, message_id: query.message.message_id })
-                    });
-                } catch(e){}
-                grantTrial(username, chatId);
-            } else {
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ callback_query_id: query.id, text: '❌ Вы еще не подписались на канал!', show_alert: true })
-                });
-            }
+            } catch(e){}
+            grantTrial(username, chatId);
         }
     }
 });
