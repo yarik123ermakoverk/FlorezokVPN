@@ -1,5 +1,15 @@
 process.env.NTBA_FIX_350 = 1;
 
+// Полностью глушим мусорные TLS-логи в консоли Render
+const originalConsoleError = console.error;
+console.error = function (...args) {
+    const msg = args.join(' ');
+    if (msg.includes('TLSWrap') || msg.includes('TLSSocket') || msg.includes('highWaterMark')) {
+        return; // Игнорируем внутренние сетевые логи Telegram
+    }
+    originalConsoleError.apply(console, args);
+};
+
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -313,5 +323,5 @@ bot.on('callback_query', async (query) => {
 bot.on('polling_error', () => {});
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server started on port ${PORT}`);
+    console.log(`🚀 Server started on port ${PORT}`);
 });
