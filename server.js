@@ -6,7 +6,7 @@ const TelegramBot = require('node-telegram-bot-api');
 
 // --- НАСТРОЙКИ ---
 const TELEGRAM_BOT_TOKEN = '9147658037:AAEaYJ56epN4hTrJXEqWm6PTC7qwO3WI7SE';
-const CHANNEL_USERNAME = '@Florezok_VPN'; // Канал для обязательной подписки
+const CHANNEL_USERNAME = '@Florezok_VPN';
 const PORT = process.env.PORT || 3000;
 const BACKEND_URL = 'https://florezokvpn.onrender.com';
 
@@ -56,24 +56,20 @@ let usedPayments = loadUsedPayments();
 let globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF";
 
 const defaultVlessKeys = [
-    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%بي%D1%81%D0%BA%D0%BE%D0%B2%201",
-    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%بي%D1%81%D0%BA%D0%BE%D0%B2%202"
+    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%D0%9E%D0%B1%D1%85%D0%BE%D0%B4_1",
+    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%D0%9E%D0%B1%D1%85%D0%BE%D0%B4_2"
 ];
 
-// Улучшенная проверка подписки через Telegram API
 async function checkChannelSubscription(userId) {
     try {
         const member = await bot.getChatMember(CHANNEL_USERNAME, userId);
-        const status = member.status;
-        console.log(`Статус пользователя ${userId} в канале ${CHANNEL_USERNAME}: ${status}`);
-        return ['creator', 'administrator', 'member'].includes(status);
+        return ['creator', 'administrator', 'member'].includes(member.status);
     } catch (e) {
-        console.error("Ошибка проверки подписки на канал:", e.message);
+        console.error("Ошибка проверки подписки:", e.message);
         return false;
     }
 }
 
-// Выдача пробного периода
 function grantTrial(username, chatId, botInstance) {
     usersDatabase = loadDB();
     const userKey = username.toLowerCase();
@@ -98,7 +94,6 @@ function grantTrial(username, chatId, botInstance) {
     );
 }
 
-// Проверка платежа через API ЮKassa
 async function processPaymentCode(login, paymentId) {
     if (usedPayments.includes(paymentId)) {
         return { success: false, message: '❌ Этот код платежа уже был активирован!' };
@@ -146,7 +141,7 @@ async function processPaymentCode(login, paymentId) {
     }
 }
 
-// --- API ДЛЯ САЙТА ---
+// --- API САЙТА ---
 app.post('/api/auth/register', (req, res) => {
     usersDatabase = loadDB();
     const { username, password } = req.body;
@@ -244,7 +239,7 @@ bot.on('message', async (msg) => {
                     ]
                 }
             };
-            return bot.sendMessage(chatId, `🔔 **Для получения пробного периода нужно подписаться на канал!**\n\n1. Нажмите кнопку ниже и подпишитесь на @Florezok_VPN\b2. Вернитесь сюда и нажмите **«✅ Я подписался»**.`, { parse_mode: 'Markdown', ...channelKb });
+            return bot.sendMessage(chatId, `🔔 **Для получения пробного периода нужно подписаться на канал!**\n\n1. Нажмите кнопку ниже и подпишитесь на @Florezok_VPN\n2. Вернитесь сюда и нажмите **«✅ Я подписался»**.`, { parse_mode: 'Markdown', ...channelKb });
         }
 
         grantTrial(username, chatId, bot);
@@ -274,7 +269,6 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, `📖 **Настройка:**\n1. Скачайте **happ** или **Hiddify**.\n2. Скопируйте ссылку из раздела «Мой профиль».\n3. Вставьте ссылку в приложение и подсоединяйтесь!`);
     }
 
-    // Автоматическая проверка кода платежа UUID
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (uuidRegex.test(text.trim())) {
         const paymentId = text.trim();
@@ -305,12 +299,17 @@ bot.on('callback_query', async (query) => {
 
         if (isSubscribed) {
             bot.answerCallbackQuery(query.id, { text: '✅ Подписка подтверждена!' });
-            // Удаляем сообщение с кнопкой проверки и выдаем триал
             try { bot.deleteMessage(chatId, query.message.message_id); } catch(e){}
             grantTrial(username, chatId, bot);
         } else {
             bot.answerCallbackQuery(query.id, { text: '❌ Вы еще не подписались на канал или бот не администратор в канале!', show_alert: true });
         }
+    }
+});
+
+bot.on('polling_error', (error) => {
+    if (!error.message.includes('409 Conflict')) {
+        console.error("Polling error:", error);
     }
 });
 
