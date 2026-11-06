@@ -2,11 +2,19 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const TelegramBot = require('node-telegram-bot-api');
+
+// --- НАСТРОЙКИ ---
+const TELEGRAM_BOT_TOKEN = '9102524912:AAHfPta15DIRB5nCVYQQXSiptTIAeUdjmF8';
+const PORT = process.env.PORT || 3000;
+const BACKEND_URL = 'https://florezokvpn.onrender.com'; // Твой адрес на Render
 
 const app = express();
-
 app.use(express.json());
 app.use(cors());
+
+// Инициализация телеграм-бота
+const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 
 const DB_FILE = path.join(__dirname, 'users.json');
 
@@ -57,8 +65,10 @@ const defaultVlessKeys = [
     "vless://255a8044-3337-473e-af26-46a37208adcc@194.55.239.86:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=piston.kachow.ink&fp=firefox&pbk=wl48cP9KpZxoAqUAePYqVmjNHO2gOzW_QCm3okkiLks&sid=87ac946b53bb52f5&type=tcp&headerType=none#%F0%9F%87%AA%F0%9F%87%AA%D0%AD%D1%81%D1%82%D0%BE%D0%BD%D0%B8%D1%8F"
 ];
 
-// Регистрация
+// --- API САЙТА ---
+
 app.post('/api/auth/register', (req, res) => {
+    usersDatabase = loadDB();
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ success: false, message: 'Заполните все поля' });
     
@@ -70,8 +80,8 @@ app.post('/api/auth/register', (req, res) => {
     res.json({ success: true, message: 'Регистрация успешна' });
 });
 
-// Авторизация
 app.post('/api/auth/login', (req, res) => {
+    usersDatabase = loadDB();
     const { username, password } = req.body;
     const login = username ? username.trim() : '';
     
@@ -82,8 +92,8 @@ app.post('/api/auth/login', (req, res) => {
     res.json({ success: true, username: login });
 });
 
-// Статус подписки
 app.get('/api/status/:username', (req, res) => {
+    usersDatabase = loadDB();
     const login = req.params.username.trim();
     const user = usersDatabase[login];
 
@@ -93,8 +103,8 @@ app.get('/api/status/:username', (req, res) => {
     res.json({ active: true, timeLeftMs: user.expiresAt - Date.now() });
 });
 
-// Ссылка подписки
 app.get('/api/sub/:username', (req, res) => {
+    usersDatabase = loadDB();
     const login = req.params.username.trim();
     const user = usersDatabase[login];
 
@@ -114,39 +124,6 @@ app.get('/api/sub/:username', (req, res) => {
     return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
 });
 
-// Вебхук ЮKassa (автоматическое начисление дней по метке label)
-app.post('/api/yookassa/webhook', (req, res) => {
-    try {
-        const event = req.body;
-        if (event && event.event === 'payment.succeeded') {
-            const payment = event.object;
-            const username = payment.metadata ? payment.metadata.username : null;
-            const label = payment.label || username; // считываем samaevka13 из label
-            const amount = payment.amount ? parseFloat(payment.amount.value) : 0;
-
-            if (label && usersDatabase[label]) {
-                let daysToAdd = 30;
-                if (amount === 1) daysToAdd = 1;         // Тест 1 рубль
-                else if (amount === 150) daysToAdd = 30;    // 1 месяц
-                else if (amount === 375) daysToAdd = 90;    // 3 месяца
-                else if (amount === 660) daysToAdd = 180;   // 6 месяцев
-                else if (amount === 1140) daysToAdd = 365;  // 1 год
-
-                const user = usersDatabase[label];
-                const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
-                user.expiresAt = currentExpire + daysToAdd * 24 * 60 * 60 * 1000;
-                
-                saveDB(usersDatabase);
-                console.log(`Успешно начислено ${daysAdd} дней для ${label}`);
-            }
-        }
-        res.status(200).json({ received: true });
-    } catch (e) {
-        console.error("Ошибка вебхука:", e);
-        res.status(500).json({ received: false });
-    }
-});
-
 // Админка
 app.post('/api/admin/login', (req, res) => {
     const { username, password } = req.body;
@@ -158,22 +135,19 @@ app.post('/api/admin/login', (req, res) => {
 });
 
 app.get('/api/admin/clients', (req, res) => {
+    usersDatabase = loadDB();
     const now = Date.now();
     const list = [];
 
     for (const [login, user] of Object.entries(usersDatabase)) {
         const active = now <= user.expiresAt;
-        list.push({
-            username: login,
-            active: active,
-            expiresAt: user.expiresAt
-        });
+        list.push({ username: login, active: active, expiresAt: user.expiresAt });
     }
-
     res.json({ clients: list });
 });
 
 app.post('/api/admin/save-client', (req, res) => {
+    usersDatabase = loadDB();
     const { username, days } = req.body;
     const login = username ? username.trim() : '';
     const addDays = parseInt(days) || 0;
@@ -193,11 +167,110 @@ app.post('/api/admin/save-client', (req, res) => {
 });
 
 app.post('/api/admin/delete-client', (req, res) => {
+    usersDatabase = loadDB();
     const { username } = req.body;
     delete usersDatabase[username];
     saveDB(usersDatabase);
     res.json({ success: true });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Сервер запущен на порту ${PORT}`));
+
+// --- TELEGRAM БОТ ---
+
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    const keyboard = {
+        reply_markup: {
+            keyboard: [
+                [{ text: '💎 Купить / Продлить подписку' }, { text: '👤 Мой профиль' }],
+                [{ text: '📱 Инструкция по настройке' }]
+            ],
+            resize_keyboard: true
+        }
+    };
+
+    bot.sendMessage(chatId, `👋 Добро пожаловать в **FlorezokVPN**!\n\nВыберите нужное действие в меню ниже:`, { parse_mode: 'Markdown', ...keyboard });
+});
+
+bot.on('message', (msg) => {
+    const chatId = msg.chat.id;
+    const text = msg.text;
+    const username = msg.from.username ? msg.from.username.toLowerCase() : `tg_${msg.from.id}`;
+
+    if (text === '💎 Купить / Продлить подписку') {
+        const tariffsText = 
+            `💎 **Выберите тариф на сайте:**\n\n` +
+            `🧪 Тест (1 день) — 1 ₽\n` +
+            `🗓 1 Месяц — 150 ₽\n` +
+            `📅 3 Месяца — 375 ₽\n` +
+            `🔥 6 Месяцев — 660 ₽\n` +
+            `⭐ 1 Год — 1140 ₽\n\n` +
+            `Ваш логин в базе для привязки: \`${username}\``;
+        
+        const inlineKeyboard = {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '🌐 Перейти на сайт', url: `${BACKEND_URL}` }],
+                    [{ text: '🔄 Проверить статус подписки', callback_data: 'check_sub' }]
+                ]
+            }
+        };
+
+        bot.sendMessage(chatId, tariffsText, { parse_mode: 'Markdown', ...inlineKeyboard });
+    }
+
+    if (text === '👤 Мой профиль') {
+        const db = loadDB();
+        const user = db[username];
+        const now = Date.now();
+
+        if (user && now <= user.expiresAt) {
+            const daysLeft = Math.ceil((user.expiresAt - now) / (1000 * 60 * 60 * 24));
+            const subUrl = `${BACKEND_URL}/api/sub/${username}`;
+
+            bot.sendMessage(chatId, 
+                `👤 **Ваш профиль:** \`${username}\`\n` +
+                `status: 🟢 **Активна**\n` +
+                `⏳ Осталось дней: **${daysLeft}**\n\n` +
+                `🔗 **Ссылка подписки для happ / Hiddify:**\n` +
+                `\`${subUrl}\``, 
+                { parse_mode: 'Markdown' }
+            );
+        } else {
+            bot.sendMessage(chatId, `👤 **Ваш профиль:** \`${username}\`\nstatus: 🔴 **Неактивна**`, { parse_mode: 'Markdown' });
+        }
+    }
+
+    if (text === '📱 Инструкция по настройке') {
+        bot.sendMessage(chatId, `📖 **Как настроить VPN:**\n1. Скачайте приложение **happ** или Hiddify.\n2. Скопируйте ссылку из раздела «👤 Мой профиль».\n3. Добавьте её в приложение и включите VPN! 🚀`, { parse_mode: 'Markdown' });
+    }
+});
+
+bot.on('callback_query', (query) => {
+    const chatId = query.message.chat.id;
+    const username = query.from.username ? query.from.username.toLowerCase() : `tg_${query.from.id}`;
+
+    if (query.data === 'check_sub') {
+        const db = loadDB();
+        if (!db[username]) {
+            db[username] = { password: '123', expiresAt: 0 };
+            saveDB(db);
+        }
+
+        const user = db[username];
+        const now = Date.now();
+
+        if (user && now <= user.expiresAt) {
+            bot.answerCallbackQuery(query.id, { text: '✅ Подписка активна!' });
+            bot.sendMessage(chatId, `🎉 Подписка активна! Проверьте раздел «👤 Мой профиль».`);
+        } else {
+            bot.answerCallbackQuery(query.id, { text: '❌ Подписка не найдена.' });
+            bot.sendMessage(chatId, `⏳ Оплата еще не поступила или срок истек.`);
+        }
+    }
+});
+
+// Запуск сервера
+app.listen(PORT, () => {
+    console.log(`🚀 Сервер и Telegram-бот запущены на порту ${PORT}`);
+});
