@@ -104,23 +104,27 @@ app.get('/api/sub/:username', (req, res) => {
     return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
 });
 
-// АВТОМАТИЧЕСКИЙ ВЕБХУК ЮКАССЫ (Создает юзера без регистрации, если его нет)
+// АВТОМАТИЧЕСКИЙ ВЕБХУК ЮКАССЫ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ
 app.post('/api/webhook/yookassa', (req, res) => {
+    console.log("📥 ПОЛУЧЕН ВЕБХУК ОТ ЮКАССЫ:", JSON.stringify(req.body));
     const event = req.body;
     
     if (event && event.event === 'payment.succeeded') {
         const payment = event.object;
         
-        // Получаем никнейм из любого доступного поля ЮKassa
+        // Поиск ника во всех возможных полях ЮKassa
         let rawUser = null;
         if (payment.label) rawUser = payment.label;
         else if (payment.metadata && payment.metadata.username) rawUser = payment.metadata.username;
-        else if (payment.description) rawUser = payment.description;
+        else if (payment.description) {
+            // Если ник передался в описании платежа
+            const match = payment.description.match(/([a-zA-Z0-9_]+)/);
+            if (match) rawUser = match[1];
+        }
 
         if (rawUser) {
             const targetUser = rawUser.trim().toLowerCase();
 
-            // Определяем количество дней по оплаченной сумме
             let days = 30;
             const amount = payment.amount && payment.amount.value ? parseFloat(payment.amount.value) : 150;
             if (amount === 1) days = 1;
@@ -131,7 +135,6 @@ app.post('/api/webhook/yookassa', (req, res) => {
 
             usersDatabase = loadDB();
             
-            // Если пользователя нет в базе — создаем его автоматически без пароля
             if (!usersDatabase[targetUser]) {
                 usersDatabase[targetUser] = { password: 'auto_generated', expiresAt: 0 };
             }
@@ -141,7 +144,9 @@ app.post('/api/webhook/yookassa', (req, res) => {
             user.expiresAt = currentExpire + days * 24 * 60 * 60 * 1000;
             saveDB(usersDatabase);
             
-            console.log(`✅ Автоматически создан/продлен пользователь ${targetUser} на ${days} дн.`);
+            console.log(`✅ АВТО-ПРОДЛЕНИЕ УСПЕШНО: Выдано ${days} дн. пользователю: ${targetUser}`);
+        } else {
+            console.log("⚠️ Не удалось найти имя пользователя в платеже ЮKassa!");
         }
     }
     res.status(200).json({ status: 'ok' });
