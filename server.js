@@ -7,7 +7,7 @@ const TelegramBot = require('node-telegram-bot-api');
 // --- НАСТРОЙКИ ---
 const TELEGRAM_BOT_TOKEN = '9147658037:AAEaYJ56epN4hTrJXEqWm6PTC7qwO3WI7SE';
 const PORT = process.env.PORT || 3000;
-const BACKEND_URL = 'https://florezokvpn.onrender.com'; // 👈 Строго адрес Render
+const BACKEND_URL = 'https://florezokvpn.onrender.com';
 
 const app = express();
 app.use(express.json());
@@ -104,35 +104,44 @@ app.get('/api/sub/:username', (req, res) => {
     return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
 });
 
-// Вебхук от ЮKassa
+// АВТОМАТИЧЕСКИЙ ВЕБХУК ЮКАССЫ (Создает юзера без регистрации, если его нет)
 app.post('/api/webhook/yookassa', (req, res) => {
     const event = req.body;
     
     if (event && event.event === 'payment.succeeded') {
         const payment = event.object;
-        const username = payment.metadata && payment.metadata.username ? payment.metadata.username.toLowerCase() : (payment.description ? payment.description.toLowerCase() : null);
-        const label = payment.label ? payment.label.toLowerCase() : null;
         
-        const targetUser = label || username;
+        // Получаем никнейм из любого доступного поля ЮKassa
+        let rawUser = null;
+        if (payment.label) rawUser = payment.label;
+        else if (payment.metadata && payment.metadata.username) rawUser = payment.metadata.username;
+        else if (payment.description) rawUser = payment.description;
 
-        let days = 30;
-        const amount = payment.amount && payment.amount.value ? parseFloat(payment.amount.value) : 150;
-        if (amount === 1) days = 1;
-        else if (amount === 150) days = 30;
-        else if (amount === 375) days = 90;
-        else if (amount === 660) days = 180;
-        else if (amount === 1140) days = 365;
+        if (rawUser) {
+            const targetUser = rawUser.trim().toLowerCase();
 
-        if (targetUser) {
+            // Определяем количество дней по оплаченной сумме
+            let days = 30;
+            const amount = payment.amount && payment.amount.value ? parseFloat(payment.amount.value) : 150;
+            if (amount === 1) days = 1;
+            else if (amount === 150) days = 30;
+            else if (amount === 375) days = 90;
+            else if (amount === 660) days = 180;
+            else if (amount === 1140) days = 365;
+
             usersDatabase = loadDB();
+            
+            // Если пользователя нет в базе — создаем его автоматически без пароля
             if (!usersDatabase[targetUser]) {
-                usersDatabase[targetUser] = { password: '123', expiresAt: 0 };
+                usersDatabase[targetUser] = { password: 'auto_generated', expiresAt: 0 };
             }
+
             const user = usersDatabase[targetUser];
             const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
             user.expiresAt = currentExpire + days * 24 * 60 * 60 * 1000;
             saveDB(usersDatabase);
-            console.log(`✅ Автоматически зачислено дней (${days}) для юзера по метке: ${targetUser}`);
+            
+            console.log(`✅ Автоматически создан/продлен пользователь ${targetUser} на ${days} дн.`);
         }
     }
     res.status(200).json({ status: 'ok' });
@@ -183,7 +192,6 @@ app.post('/api/admin/delete-client', (req, res) => {
     res.json({ success: true });
 });
 
-
 // --- TELEGRAM БОТ ---
 
 bot.onText(/\/start/, (msg) => {
@@ -208,7 +216,7 @@ bot.on('message', async (msg) => {
     if (text === 'Купить') {
         const tariffsText = 
             `💎 **Выберите тариф для покупки:**\n\n` +
-            `Ваш аккаунт для автоматической привязки: \`${username}\``;
+            `Ваш аккаунт для авто-выдачи: \`${username}\``;
         
         const inlineKeyboard = {
             reply_markup: {
@@ -267,7 +275,7 @@ bot.on('callback_query', (query) => {
             bot.sendMessage(chatId, `🎉 Подписка активна!\n\n🔗 Ваша ссылка подписки:\n\`${subUrl}\``, { parse_mode: 'Markdown' });
         } else {
             bot.answerCallbackQuery(query.id, { text: '❌ Оплата еще не поступила.' });
-            bot.sendMessage(chatId, `⏳ Оплата пока не поступила. Если вы только что оплатили, подождите 10-20 секунд и нажмите кнопку проверки снова.`);
+            bot.sendMessage(chatId, `⏳ Оплата пока не поступила. Попробуйте еще раз через пару секунд.`);
         }
     }
 });
