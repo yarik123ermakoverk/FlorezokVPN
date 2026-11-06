@@ -142,6 +142,10 @@ async function processPaymentCode(login, paymentId) {
 }
 
 // --- API САЙТА ---
+app.get('/', (req, res) => {
+    res.send('FlorezokVPN Backend is running!');
+});
+
 app.post('/api/auth/register', (req, res) => {
     usersDatabase = loadDB();
     const { username, password } = req.body;
@@ -203,7 +207,6 @@ bot.onText(/\/start/, (msg) => {
 });
 
 bot.on('message', async (msg) => {
-    // ЗАЩИТА: если сообщение без текста (например, картинка или стикер), просто выходим
     if (!msg.text) return;
 
     const chatId = msg.chat.id;
@@ -316,6 +319,6 @@ bot.on('polling_error', (error) => {
     }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Сервер и бот успешно запущены на порту ${PORT}`);
 });
