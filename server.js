@@ -9,6 +9,10 @@ const TELEGRAM_BOT_TOKEN = '9147658037:AAEaYJ56epN4hTrJXEqWm6PTC7qwO3WI7SE';
 const PORT = process.env.PORT || 3000;
 const BACKEND_URL = 'https://florezokvpn.onrender.com';
 
+// Данные API ЮKassa
+const YOOKASSA_SHOP_ID = '1519153'; 
+const YOOKASSA_SECRET_KEY = 'live_zdfOFIU0YPqEEk_Nk_3V3hw-Pi2sGcXOQ-yB_57TJyc'; 
+
 const app = express();
 app.use(express.json());
 app.use(cors({
@@ -20,38 +24,94 @@ app.options('*', cors());
 
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 const DB_FILE = path.join(__dirname, 'users.json');
+const PAYMENTS_FILE = path.join(__dirname, 'used_payments.json');
 
+// --- РАБОТА С БАЗОЙ ---
 function loadDB() {
     try {
         if (fs.existsSync(DB_FILE)) {
-            const data = fs.readFileSync(DB_FILE, 'utf8');
-            return JSON.parse(data);
+            return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
         }
-    } catch (e) {
-        console.error("Ошибка чтения базы:", e);
-    }
+    } catch (e) { console.error("Ошибка чтения базы:", e); }
     return {};
 }
 
 function saveDB(db) {
+    try { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8'); }
+    catch (e) { console.error("Ошибка сохранения базы:", e); }
+}
+
+function loadUsedPayments() {
     try {
-        fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
-    } catch (e) {
-        console.error("Ошибка сохранения базы:", e);
-    }
+        if (fs.existsSync(PAYMENTS_FILE)) {
+            return JSON.parse(fs.readFileSync(PAYMENTS_FILE, 'utf8'));
+        }
+    } catch (e) { console.error("Ошибка чтения платежей:", e); }
+    return [];
+}
+
+function saveUsedPayments(list) {
+    try { fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(list, null, 2), 'utf8'); }
+    catch (e) { console.error("Ошибка сохранения платежей:", e); }
 }
 
 let usersDatabase = loadDB();
+let usedPayments = loadUsedPayments();
 
 let globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF%20%E2%80%A2%20%D0%9F%D0%A0%D0%9E%D0%94%D0%9B%D0%98%D0%AC%20%D0%9D%D0%90%20%D0%A1%D0%90%D0%99%D0%A2%D0%95";
 
 const defaultVlessKeys = [
-    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%201",
-    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%202"
+    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%بي%D1%81%D0%BA%D0%BE%D0%B2%201",
+    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%би%D1%81%D0%BA%D0%BE%D0%B2%202"
 ];
 
-// --- API САЙТА ---
+// --- ПРОВЕРКА КОДА ПЛАТЕЖА ЧЕРЕЗ ЮКАССУ ---
+async function verifyYookassaPayment(paymentId) {
+    if (usedPayments.includes(paymentId)) {
+        return { valid: false, message: '❌ Этот код платежа уже был использован!' };
+    }
 
+    try {
+        const auth = Buffer.from(`${YOOKASSA_SHOP_ID}:${YOOKASSA_SECRET_KEY}`).toString('base64');
+        const response = await fetch(`https://api.yookassa.ru/v3/payments/${paymentId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Basic ${auth}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            return { valid: false, message: '❌ Платеж с таким кодом не найден в ЮKassa.' };
+        }
+
+        const data = await response.json();
+
+        if (data.status !== 'succeeded') {
+            return { valid: false, message: `⚠️ Платеж найден, но его статус: ${data.status}. Оплата еще не завершена.` };
+        }
+
+        const amount = parseFloat(data.amount.value);
+        let days = 30;
+        if (amount === 1) days = 1;
+        else if (amount === 150) days = 30;
+        else if (amount === 375) days = 90;
+        else if (amount === 660) days = 180;
+        else if (amount === 1140) days = 365;
+
+        // Фиксируем платеж как использованный
+        usedPayments.push(paymentId);
+        saveUsedPayments(usedPayments);
+
+        return { valid: true, days: days, amount: amount };
+
+    } catch (e) {
+        console.error("Ошибка при обращении к ЮKassa API:", e);
+        return { valid: false, message: '❌ Ошибка проверки кода на сервере ЮKassa.' };
+    }
+}
+
+// --- API САЙТА ---
 app.post('/api/auth/register', (req, res) => {
     usersDatabase = loadDB();
     const { username, password } = req.body;
@@ -104,62 +164,12 @@ app.get('/api/sub/:username', (req, res) => {
     return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
 });
 
-// АВТОМАТИЧЕСКИЙ ВЕБХУК ЮКАССЫ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ
-app.post('/api/webhook/yookassa', (req, res) => {
-    console.log("📥 ПОЛУЧЕН ВЕБХУК ОТ ЮКАССЫ:", JSON.stringify(req.body));
-    const event = req.body;
-    
-    if (event && event.event === 'payment.succeeded') {
-        const payment = event.object;
-        
-        // Поиск ника во всех возможных полях ЮKassa
-        let rawUser = null;
-        if (payment.label) rawUser = payment.label;
-        else if (payment.metadata && payment.metadata.username) rawUser = payment.metadata.username;
-        else if (payment.description) {
-            // Если ник передался в описании платежа
-            const match = payment.description.match(/([a-zA-Z0-9_]+)/);
-            if (match) rawUser = match[1];
-        }
-
-        if (rawUser) {
-            const targetUser = rawUser.trim().toLowerCase();
-
-            let days = 30;
-            const amount = payment.amount && payment.amount.value ? parseFloat(payment.amount.value) : 150;
-            if (amount === 1) days = 1;
-            else if (amount === 150) days = 30;
-            else if (amount === 375) days = 90;
-            else if (amount === 660) days = 180;
-            else if (amount === 1140) days = 365;
-
-            usersDatabase = loadDB();
-            
-            if (!usersDatabase[targetUser]) {
-                usersDatabase[targetUser] = { password: 'auto_generated', expiresAt: 0 };
-            }
-
-            const user = usersDatabase[targetUser];
-            const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
-            user.expiresAt = currentExpire + days * 24 * 60 * 60 * 1000;
-            saveDB(usersDatabase);
-            
-            console.log(`✅ АВТО-ПРОДЛЕНИЕ УСПЕШНО: Выдано ${days} дн. пользователю: ${targetUser}`);
-        } else {
-            console.log("⚠️ Не удалось найти имя пользователя в платеже ЮKassa!");
-        }
-    }
-    res.status(200).json({ status: 'ok' });
-});
-
-// Админка API
+// Админка
 app.post('/api/admin/login', (req, res) => {
     const { username, password } = req.body;
     if (username === 'admin' && (password === 'admin' || password === 'chiha')) {
         res.json({ success: true });
-    } else {
-        res.status(401).json({ success: false });
-    }
+    } else { res.status(401).json({ success: false }); }
 });
 
 app.get('/api/admin/clients', (req, res) => {
@@ -167,8 +177,7 @@ app.get('/api/admin/clients', (req, res) => {
     const now = Date.now();
     const list = [];
     for (const [login, user] of Object.entries(usersDatabase)) {
-        const active = now <= user.expiresAt;
-        list.push({ username: login, active: active, expiresAt: user.expiresAt });
+        list.push({ username: login, active: now <= user.expiresAt, expiresAt: user.expiresAt });
     }
     res.json({ clients: list });
 });
@@ -179,109 +188,125 @@ app.post('/api/admin/save-client', (req, res) => {
     const login = username ? username.trim().toLowerCase() : '';
     const addDays = parseInt(days) || 0;
     if (!login) return res.status(400).json({ success: false, message: 'Укажите логин' });
-    if (!usersDatabase[login]) {
-        usersDatabase[login] = { password: '123', expiresAt: 0 };
-    }
+    if (!usersDatabase[login]) usersDatabase[login] = { password: '123', expiresAt: 0 };
     const user = usersDatabase[login];
-    const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
-    user.expiresAt = currentExpire + addDays * 24 * 60 * 60 * 1000;
+    user.expiresAt = (user.expiresAt > Date.now() ? user.expiresAt : Date.now()) + addDays * 86400000;
     saveDB(usersDatabase);
     res.json({ success: true });
 });
 
 app.post('/api/admin/delete-client', (req, res) => {
     usersDatabase = loadDB();
-    const { username } = req.body;
-    delete usersDatabase[username];
+    delete usersDatabase[req.body.username];
     saveDB(usersDatabase);
     res.json({ success: true });
 });
 
-// --- TELEGRAM БОТ ---
 
+// --- TELEGRAM БОТ ---
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     const keyboard = {
         reply_markup: {
             keyboard: [
-                [{ text: 'Купить' }, { text: 'Мой профиль' }],
-                [{ text: 'Инструкция' }]
+                [{ text: '💳 Купить' }, { text: '👤 Мой профиль' }],
+                [{ text: '🔑 Активировать по коду' }, { text: '📖 Инструкция' }]
             ],
             resize_keyboard: true
         }
     };
-    bot.sendMessage(chatId, `👋 Добро пожаловать в **FlorezokVPN**!\n\nВыберите нужное действие в меню ниже:`, { parse_mode: 'Markdown', ...keyboard });
+    bot.sendMessage(chatId, `👋 Добро пожаловать в **FlorezokVPN**!\n\nКупите подписку или нажмите «Активировать по коду» и отправьте номер платежа.`, { parse_mode: 'Markdown', ...keyboard });
 });
+
+const userStates = {};
 
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
     const username = msg.from.username ? msg.from.username.toLowerCase() : `tg_${msg.from.id}`;
 
-    if (text === 'Купить') {
-        const tariffsText = 
-            `💎 **Выберите тариф для покупки:**\n\n` +
-            `Ваш аккаунт для авто-выдачи: \`${username}\``;
-        
+    if (text === '💳 Купить') {
+        const tariffsText = `💎 **Выберите тариф:**\nВаш логин для подписки: \`${username}\``;
         const inlineKeyboard = {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: 'Тест (1 рубль)', url: `https://yookassa.ru/my/i/au40gd6mmFd5/l?label=${username}` }],
-                    [{ text: '1 Месяц (150 ₽)', url: `https://yookassa.ru/my/i/au4a647hWPzD/l?label=${username}` }],
-                    [{ text: '3 Месяца (375 ₽)', url: `https://yookassa.ru/my/i/au4bJLCp8dGe/l?label=${username}` }],
-                    [{ text: '6 Месяцев (660 ₽)', url: `https://yookassa.ru/my/i/au4bSkpIvx0J/l?label=${username}` }],
-                    [{ text: '1 Год (1140 ₽)', url: `https://yookassa.ru/my/i/au4bZXML-7FH/l?label=${username}` }],
-                    [{ text: '🔄 Проверить оплату', callback_data: 'check_sub' }]
+                    [{ text: 'Тест (1 рубль)', url: 'https://yookassa.ru/my/i/au40gd6mmFd5/l' }],
+                    [{ text: '1 Месяц (150 ₽)', url: 'https://yookassa.ru/my/i/au4a647hWPzD/l' }],
+                    [{ text: '3 Месяца (375 ₽)', url: 'https://yookassa.ru/my/i/au4bJLCp8dGe/l' }],
+                    [{ text: '6 Месяцев (660 ₽)', url: 'https://yookassa.ru/my/i/au4bSkpIvx0J/l' }],
+                    [{ text: '1 Год (1140 ₽)', url: 'https://yookassa.ru/my/i/au4bZXML-7FH/l' }]
                 ]
             }
         };
-
-        bot.sendMessage(chatId, tariffsText, { parse_mode: 'Markdown', ...inlineKeyboard });
+        return bot.sendMessage(chatId, tariffsText, { parse_mode: 'Markdown', ...inlineKeyboard });
     }
 
-    if (text === 'Мой профиль') {
-        const db = loadDB();
-        const user = db[username];
+    if (text === '👤 Мой профиль') {
+        usersDatabase = loadDB();
+        const user = usersDatabase[username];
         const now = Date.now();
 
         if (user && now <= user.expiresAt) {
-            const daysLeft = Math.ceil((user.expiresAt - now) / (1000 * 60 * 60 * 24));
+            const daysLeft = Math.ceil((user.expiresAt - now) / 86400000);
             const subUrl = `${BACKEND_URL}/api/sub/${username}`;
-            bot.sendMessage(chatId, 
-                `👤 **Ваш профиль:** \`${username}\`\n` +
-                `status: 🟢 **Активна**\n` +
-                `⏳ Осталось дней: **${daysLeft}**\n\n` +
-                `🔗 **Ссылка подписки для happ / Hiddify:**\n` +
-                `\`${subUrl}\``, 
+            return bot.sendMessage(chatId, 
+                `👤 **Ваш аккаунт:** \`${username}\`\n` +
+                `Статус: 🟢 **Активна** (Осталось дней: **${daysLeft}**)\n\n` +
+                `🔗 **Ссылка для приложения:**\n\`${subUrl}\``, 
                 { parse_mode: 'Markdown' }
             );
         } else {
-            bot.sendMessage(chatId, `👤 **Ваш профиль:** \`${username}\`\nstatus: 🔴 **Неактивна**`, { parse_mode: 'Markdown' });
+            return bot.sendMessage(chatId, `👤 **Ваш аккаунт:** \`${username}\`\nСтатус: 🔴 **Неактивна**`, { parse_mode: 'Markdown' });
         }
     }
 
-    if (text === 'Инструкция') {
-        bot.sendMessage(chatId, `📖 **Как настроить VPN:**\n1. Скачайте приложение **happ** или Hiddify.\n2. Скопируйте ссылку из раздела «Мой профиль».\n3. Добавьте её в приложение и включите VPN! 🚀`, { parse_mode: 'Markdown' });
+    if (text === '🔑 Активировать по коду') {
+        userStates[chatId] = 'WAITING_PAYMENT_CODE';
+        return bot.sendMessage(chatId, `🔍 **Отправьте код платежа из чека ЮKassa.**\nПример: \`328068cd-000f-5001-9000-1697ba54ef69\``, { parse_mode: 'Markdown' });
+    }
+
+    if (text === '📖 Инструкция') {
+        return bot.sendMessage(chatId, `📖 **Настройка:**\n1. Скачайте **happ** или Hiddify.\n2. Скопируйте ссылку из «Мой профиль».\n3. Вставьте ссылку в приложение и подсоединяйтесь!`);
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    if (userStates[chatId] === 'WAITING_PAYMENT_CODE' || uuidRegex.test(text.trim())) {
+        delete userStates[chatId];
+        const paymentId = text.trim();
+
+        bot.sendMessage(chatId, `⏳ Проверяем код платежа \`${paymentId}\`...`, { parse_mode: 'Markdown' });
+
+        const result = await verifyYookassaPayment(paymentId);
+
+        if (result.valid) {
+            usersDatabase = loadDB();
+            if (!usersDatabase[username]) {
+                usersDatabase[username] = { password: 'auto_generated', expiresAt: 0 };
+            }
+            const user = usersDatabase[username];
+            const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
+            user.expiresAt = currentExpire + result.days * 86400000;
+            saveDB(usersDatabase);
+
+            const subUrl = `${BACKEND_URL}/api/sub/${username}`;
+            
+            bot.sendMessage(chatId, 
+                `🎉 **ПОДПИСКА УСПЕШНО АКТИВИРОВАНА!**\n\n` +
+                `✅ Аккаунт на сайте создан/продлен: \`${username}\`\n` +
+                `⏳ Добавлено дней: **${result.days}**\n\n` +
+                `🔗 **Ваша подписка:**\n\`${subUrl}\``, 
+                { parse_mode: 'Markdown' }
+            );
+        } else {
+            bot.sendMessage(chatId, result.message);
+        }
     }
 });
 
-bot.on('callback_query', (query) => {
-    const chatId = query.message.chat.id;
-    const username = query.from.username ? query.from.username.toLowerCase() : `tg_${query.from.id}`;
-
-    if (query.data === 'check_sub') {
-        const db = loadDB();
-        const user = db[username];
-        const now = Date.now();
-
-        if (user && now <= user.expiresAt) {
-            const subUrl = `${BACKEND_URL}/api/sub/${username}`;
-            bot.answerCallbackQuery(query.id, { text: '✅ Подписка активна!' });
-            bot.sendMessage(chatId, `🎉 Подписка активна!\n\n🔗 Ваша ссылка подписки:\n\`${subUrl}\``, { parse_mode: 'Markdown' });
-        } else {
-            bot.answerCallbackQuery(query.id, { text: '❌ Оплата еще не поступила.' });
-            bot.sendMessage(chatId, `⏳ Оплата пока не поступила. Попробуйте еще раз через пару секунд.`);
-        }
+bot.on('polling_error', (error) => {
+    if (!error.message.includes('409 Conflict')) {
+        console.error("Polling error:", error);
     }
 });
 
