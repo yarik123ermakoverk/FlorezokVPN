@@ -67,12 +67,13 @@ const defaultVlessKeys = [
     "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%D0%9E%D0%B1%D1%85%D0%BE%D0%B4_2"
 ];
 
-// Проверка подписки на канал через Telegram API
+// Реальная проверка подписки на канал через Telegram API
 async function checkChannelSubscription(userId) {
     try {
         const member = await bot.getChatMember(CHANNEL_USERNAME, userId);
         return ['creator', 'administrator', 'member'].includes(member.status);
     } catch (e) {
+        console.error("Ошибка проверки подписки:", e.message);
         return false;
     }
 }
@@ -171,7 +172,6 @@ app.post('/api/auth/login', (req, res) => {
     res.json({ success: true, username: login });
 });
 
-// Эндпоинт админ-панели (доступен только для samaevka13)
 app.get('/api/admin/users', (req, res) => {
     const adminUser = req.headers['x-admin-user'];
     if (adminUser !== 'samaevka13') {
@@ -249,6 +249,7 @@ bot.on('message', async (msg) => {
     }
 
     if (text === '🎁 Пробная подписка') {
+        // Проверяем, подписан ли пользователь уже
         const isSubscribed = await checkChannelSubscription(userId);
 
         if (!isSubscribed) {
@@ -262,12 +263,13 @@ bot.on('message', async (msg) => {
             };
             return bot.sendMessage(chatId, 
                 `🔔 **Чтобы получить пробную подписку, необходимо подписаться на наш Telegram-канал!**\n\n` +
-                `1. Подпишитесь на официальный канал: ${CHANNEL_USERNAME}\n` +
-                `2. Нажмите кнопку «✅ Я подписался» ниже.`, 
+                `1. Подпишитесь на канал: ${CHANNEL_USERNAME}\n` +
+                `2. Нажмите кнопку **«✅ Я подписался»** ниже для проверки.`, 
                 { parse_mode: 'Markdown', ...channelKb }
             );
         }
 
+        // Если уже подписан — сразу выдаем пробную подписку
         grantTrial(username, chatId, bot);
         return;
     }
@@ -306,7 +308,7 @@ bot.on('message', async (msg) => {
                 `🎉 **ПОДПИСКА УСПЕШНО АКТИВИРОВАНА!**\n\n` +
                 `✅ Логин: \`${username}\`\n` +
                 `⏳ Добавлено дней: **${result.days}**\n\n` +
-                `🔗 **Ссылка подписки:**\n\`${result.subUrl}\``, 
+                `🔗 **Ваша ссылка подписки:**\n\`${result.subUrl}\``, 
                 { parse_mode: 'Markdown' }
             );
         } else {
