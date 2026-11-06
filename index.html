@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlorezokVPN — Свободный интернет</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes floatGlow {
+            0%, 100% { transform: translateY(0px) scale(1); opacity: 0.5; }
+            50% { transform: translateY(-15px) scale(1.08); opacity: 0.8; }
+        }
+        .glow-orb { animation: floatGlow 8s infinite ease-in-out; }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+<body class="bg-[#020617] text-slate-100 min-h-screen flex flex-col justify-between font-sans selection:bg-indigo-500 selection:text-white relative overflow-x-hidden">
+
+    <div class="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[350px] md:w-[700px] h-[350px] bg-indigo-600/20 blur-[150px] rounded-full pointer-events-none glow-orb"></div>
+    <div class="absolute bottom-10 right-[-50px] w-[250px] h-[250px] bg-purple-600/15 blur-[130px] rounded-full pointer-events-none"></div>
+
+    <header class="max-w-xl mx-auto w-full px-4 pt-6 flex justify-between items-center z-10">
+        <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 flex items-center justify-center font-black text-white shadow-lg shadow-indigo-500/40 text-base">F</div>
+            <span class="font-extrabold text-lg tracking-wider text-white">Florezok<span class="text-indigo-400">VPN</span></span>
+        </div>
+        <button onclick="openAdminModal()" class="text-xs font-medium text-slate-300 hover:text-white glass-card px-3.5 py-2 rounded-xl transition active:scale-95 flex items-center gap-1.5 shadow-sm">
+            <span>🛡️</span> Админка
+        </button>
+    </header>
+
+    <main class="max-w-xl mx-auto w-full px-4 my-auto py-6 z-10">
+        <div class="glass-card rounded-[28px] p-5 md:p-8 shadow-2xl shadow-black/90">
+            
+            <div class="text-center mb-6">
+                <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[11px] font-semibold mb-3">
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span> Высокая скорость • Без лимитов
+                </div>
+                <h1 class="text-2xl md:text-3xl font-black text-white tracking-tight mb-1.5">Премиум доступ в сеть</h1>
+                <p class="text-xs md:text-sm text-slate-400">Выберите готовый тариф для оформления подписки.</p>
+            </div>
+
+            <!-- Telegram ник -->
+            <div class="bg-indigo-950/40 border border-indigo-500/30 rounded-2xl p-4 mb-6 shadow-inner">
+                <label class="block text-xs font-bold text-indigo-300 mb-1.5 flex items-center gap-1.5">
+                    <span>📱</span> Ваш Telegram ник (обязательно):
+                </label>
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-400 font-mono text-sm pl-1">@</span>
+                    <input type="text" id="tg-username" placeholder="durov" class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs md:text-sm text-white focus:outline-none focus:border-indigo-500 font-mono" oninput="saveTelegram()">
+                </div>
+                <p id="tg-warning" class="text-[10px] text-rose-400 mt-1.5 hidden">⚠️ Укажите ваш ник в Telegram перед выбором тарифа!</p>
+            </div>
+
+            <!-- Статус -->
+            <div id="status-box" class="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 mb-6 text-center shadow-inner relative overflow-hidden">
+                <p class="text-[11px] text-slate-400 uppercase tracking-widest font-bold mb-1">Статус подключения</p>
+                <p id="sub-status" class="text-base md:text-lg font-extrabold text-rose-400">Неактивна</p>
+                <p id="timer" class="text-xs text-indigo-300 mt-2 hidden font-mono bg-indigo-950/60 border border-indigo-900/60 py-1 px-4 rounded-full inline-block shadow-sm"></p>
+            </div>
+
+            <!-- Тарифные планы (со ссылками ЮKassa) -->
+            <div class="space-y-3 mb-6">
+                
+                <!-- 1 месяц -->
+                <button onclick="goToPayment('https://yookassa.ru/my/i/au4a647hWPzD/l')" class="w-full bg-slate-950/40 hover:bg-slate-800/60 border border-slate-800/80 p-4 rounded-2xl flex justify-between items-center transition active:scale-[0.98]">
+                    <div class="text-left">
+                        <div class="text-[10px] uppercase font-bold text-slate-400">Стандарт</div>
+                        <div class="text-base font-extrabold text-white">1 месяц</div>
+                        <div class="text-xs text-slate-400 mt-0.5">150 ₽ в месяц</div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-lg font-black text-emerald-400">150 ₽</span>
+                    </div>
+                </button>
+
+                <!-- 3 месяца -->
+                <button onclick="goToPayment('https://yookassa.ru/my/i/au4bJLCp8dGe/l')" class="w-full bg-slate-950/40 hover:bg-slate-800/60 border border-slate-800/80 p-4 rounded-2xl flex justify-between items-center transition active:scale-[0.98]">
+                    <div class="text-left">
+                        <div class="text-[10px] uppercase font-bold text-indigo-400">Популярный</div>
+                        <div class="text-base font-extrabold text-white">3 месяца</div>
+                        <div class="text-xs text-slate-400 mt-0.5">125 ₽ / месяц</div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-lg font-black text-emerald-400">375 ₽</span>
+                    </div>
+                </button>
+
+                <!-- 6 месяцев (Хит продаж) -->
+                <button onclick="goToPayment('https://yookassa.ru/my/i/au4bSkpIvx0J/l')" class="w-full bg-slate-950/40 hover:bg-slate-800/60 border border-emerald-500/40 p-4 rounded-2xl flex justify-between items-center transition active:scale-[0.98] relative overflow-hidden">
+                    <div class="absolute top-0 right-0 bg-emerald-500 text-slate-950 text-[9px] font-black px-2.5 py-0.5 rounded-bl-xl tracking-wider">ХИТ ПРОДАЖ</div>
+                    <div class="text-left">
+                        <div class="text-[10px] uppercase font-bold text-emerald-400">Выгодный</div>
+                        <div class="text-base font-extrabold text-white">6 месяцев</div>
+                        <div class="text-xs text-slate-400 mt-0.5">110 ₽ / месяц</div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-lg font-black text-emerald-400">660 ₽</span>
+                    </div>
+                </button>
+
+                <!-- Год (Максимальная выгода) -->
+                <button onclick="goToPayment('https://yookassa.ru/my/i/au4bZXML-7FH/l')" class="w-full bg-slate-950/40 hover:bg-slate-800/60 border border-indigo-500/40 p-4 rounded-2xl flex justify-between items-center transition active:scale-[0.98] relative overflow-hidden">
+                    <div class="absolute top-0 right-0 bg-indigo-500 text-white text-[9px] font-black px-2.5 py-0.5 rounded-bl-xl tracking-wider">МАКСИМАЛЬНАЯ ВЫГОДА</div>
+                    <div class="text-left">
+                        <div class="text-[10px] uppercase font-bold text-indigo-400">Годовой</div>
+                        <div class="text-base font-extrabold text-white">1 год (12 мес.)</div>
+                        <div class="text-xs text-slate-400 mt-0.5">95 ₽ / месяц</div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-lg font-black text-indigo-300">1140 ₽</span>
+                    </div>
+                </button>
+
+            </div>
+
+            <!-- Ссылка подписки -->
+            <div id="vpn-content" class="mt-6 p-4 bg-emerald-950/20 border border-emerald-500/30 rounded-2xl hidden">
+                <h3 class="text-emerald-400 font-bold text-xs md:text-sm mb-1 flex items-center gap-1.5">
+                    <span>🎉</span> Доступ успешно открыт!
+                </h3>
+                <p class="text-[11px] md:text-xs text-slate-300 mb-3">Скопируйте вашу подписку и вставьте в <strong class="text-white">happ</strong> или <strong class="text-white">Hiddify</strong>:</p>
+                <div class="flex items-center gap-2 bg-slate-950/90 p-2 rounded-xl border border-emerald-900/40">
+                    <input type="text" id="sub-url-input" readonly class="w-full bg-transparent text-emerald-300 font-mono text-[11px] focus:outline-none truncate px-1">
+                    <button onclick="copySubUrl()" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white px-3 py-2 rounded-lg text-xs font-bold transition shrink-0">
+                        Копировать
+                    </button>
+                </div>
+                <p id="copy-success" class="text-[10px] text-emerald-400 mt-1.5 text-right font-medium hidden">✓ Скопировано!</p>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Модальное окно Админки -->
+    <div id="admin-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex items-end md:items-center justify-center p-0 md:p-4">
+        <div class="glass-card border-t md:border border-slate-800 rounded-t-[32px] md:rounded-[28px] max-w-2xl w-full p-5 md:p-6 shadow-2xl h-[85vh] md:h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800/80">
+                <h2 class="text-base md:text-lg font-bold text-white flex items-center gap-2"><span>🛡️</span> Управление подписками</h2>
+                <button onclick="closeAdminModal()" class="text-slate-400 hover:text-white text-xs bg-slate-800/80 px-3.5 py-2 rounded-xl">Закрыть ✕</button>
+            </div>
+
+            <div id="admin-login-box" class="space-y-4 my-auto">
+                <p class="text-xs text-slate-400 text-center">Введите пароль администратора</p>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Логин:</label>
+                    <input type="text" id="admin-user" value="admin" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Пароль:</label>
+                    <input type="password" id="admin-pass" value="123456" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white">
+                </div>
+                <button onclick="adminLogin()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-xs font-bold transition">Войти</button>
+            </div>
+
+            <div id="admin-dashboard" class="hidden flex-1 overflow-y-auto space-y-4 pr-0.5">
+                <div class="bg-slate-950/80 border border-slate-800 p-3.5 rounded-2xl">
+                    <h3 class="text-[11px] font-bold text-indigo-400 uppercase tracking-wider mb-2">Глобальная заглушка:</h3>
+                    <textarea id="global-expired-input" class="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300 font-mono h-16 resize-none focus:outline-none"></textarea>
+                    <button onclick="saveGlobalExpired()" class="mt-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Сохранить</button>
+                </div>
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Активные (<span id="users-count">0</span>):</h3>
+                        <button onclick="loadAdminData()" class="text-xs text-indigo-400">🔄 Обновить</button>
+                    </div>
+                    <div id="users-list" class="space-y-3 pb-6"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="text-center text-[10px] text-slate-500 py-6 z-10">
+        FlorezokVPN &copy; 2026
+    </footer>
+
+    <script>
+        const backendUrl = "https://florezokvpn.onrender.com";
+
+        let savedTg = localStorage.getItem('florezok_tg') || '';
+        if (savedTg) {
+            document.getElementById('tg-username').value = savedTg;
+            updateSubLink(savedTg);
+            checkStatus(savedTg);
+        }
+
+        function saveTelegram() {
+            let tg = document.getElementById('tg-username').value.trim().replace('@', '');
+            localStorage.setItem('florezok_tg', tg);
+            if (tg) {
+                document.getElementById('tg-warning').classList.add('hidden');
+                updateSubLink(tg);
+                checkStatus(tg);
+            }
+        }
+
+        function getTg() {
+            let tg = document.getElementById('tg-username').value.trim().replace('@', '');
+            if (!tg) {
+                document.getElementById('tg-warning').classList.remove('hidden');
+                document.getElementById('tg-username').focus();
+                return null;
+            }
+            document.getElementById('tg-warning').classList.add('hidden');
+            return tg;
+        }
+
+        function updateSubLink(tg) {
+            document.getElementById('sub-url-input').value = `${backendUrl}/api/sub/${tg}`;
+        }
+
+        let timerInterval = null;
+
+        async function checkStatus(tg) {
+            if (!tg) return;
+            try {
+                const response = await fetch(`${backendUrl}/api/status/${tg}`);
+                const data = await response.json();
+
+                const statusEl = document.getElementById('sub-status');
+                const contentEl = document.getElementById('vpn-content');
+
+                if (data.active) {
+                    statusEl.textContent = "Активна (@" + tg + ")";
+                    statusEl.className = "text-base md:text-lg font-extrabold text-emerald-400";
+                    contentEl.classList.remove('hidden');
+                    startTimer(data.timeLeftMs);
+                } else {
+                    statusEl.textContent = "Неактивна";
+                    statusEl.className = "text-base md:text-lg font-extrabold text-rose-400";
+                    contentEl.classList.add('hidden');
+                    clearInterval(timerInterval);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function goToPayment(paymentUrl) {
+            const tg = getTg();
+            if (!tg) return;
+            // Переходим на официальную ссылку ЮKassa
+            window.location.href = paymentUrl;
+        }
+
+        function copySubUrl() {
+            const input = document.getElementById('sub-url-input');
+            input.select();
+            navigator.clipboard.writeText(input.value);
+            const successText = document.getElementById('copy-success');
+            successText.classList.remove('hidden');
+            setTimeout(() => successText.classList.add('hidden'), 2500);
+        }
+
+        function startTimer(durationMs) {
+            clearInterval(timerInterval);
+            let endTime = Date.now() + durationMs;
+            const timerEl = document.getElementById('timer');
+            timerEl.classList.remove('hidden');
+
+            timerInterval = setInterval(() => {
+                let timeLeft = endTime - Date.now();
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    timerEl.classList.add('hidden');
+                    checkStatus(document.getElementById('tg-username').value.trim());
+                    return;
+                }
+                let seconds = Math.floor(timeLeft / 1000);
+                let days = Math.floor(seconds / (3600 * 24));
+                let hours = Math.floor((seconds % (3600 * 24)) / 3600);
+                let mins = Math.floor((seconds % 3600) / 60);
+                let secs = seconds % 60;
+
+                let str = "";
+                if (days > 0) str += `${days}д `;
+                if (hours > 0 || days > 0) str += `${hours}ч `;
+                str += `${mins}м ${secs < 10 ? '0' : ''}${secs}с`;
+                timerEl.textContent = `Осталось: ${str}`;
+            }, 1000);
+        }
+
+        function openAdminModal() { document.getElementById('admin-modal').classList.remove('hidden'); }
+        function closeAdminModal() { document.getElementById('admin-modal').classList.add('hidden'); }
+
+        async function adminLogin() {
+            const u = document.getElementById('admin-user').value;
+            const p = document.getElementById('admin-pass').value;
+            const res = await fetch(`${backendUrl}/api/admin/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('admin-login-box').classList.add('hidden');
+                document.getElementById('admin-dashboard').classList.remove('hidden');
+                loadAdminData();
+            } else alert("Ошибка входа!");
+        }
+
+        async function loadAdminData() {
+            const res = await fetch(`${backendUrl}/api/admin/users`);
+            const data = await res.json();
+            document.getElementById('users-count').textContent = data.users.length;
+            const listEl = document.getElementById('users-list');
+            listEl.innerHTML = '';
+            data.users.forEach(user => {
+                let item = document.createElement('div');
+                item.className = "bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs space-y-2";
+                item.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-mono text-indigo-400 font-bold">@${user.userId}</span>
+                        <div class="flex gap-1">
+                            <button onclick="addTime('${user.userId}', 60)" class="bg-indigo-600/30 text-indigo-300 px-2 py-1 rounded">+1ч</button>
+                            <button onclick="deleteUserSub('${user.userId}')" class="bg-rose-600/30 text-rose-300 px-2 py-1 rounded">🗑️</button>
+                        </div>
+                    </div>
+                `;
+                listEl.appendChild(item);
+            });
+        }
+
+        async function addTime(userId, minutes) {
+            await fetch(`${backendUrl}/api/admin/update-user`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: userId, addMinutes: minutes })
+            });
+            loadAdminData();
+        }
+
+        async function deleteUserSub(userId) {
+            if (!confirm(`Удалить подписку @${userId}?`)) return;
+            await fetch(`${backendUrl}/api/admin/update-user`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: userId, expireNow: true })
+            });
+            loadAdminData();
+        }
+    </script>
+</body>
+</html>
