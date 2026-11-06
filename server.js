@@ -31,25 +31,23 @@ const PAYMENTS_FILE = path.join(__dirname, 'used_payments.json');
 function loadDB() {
     try {
         if (fs.existsSync(DB_FILE)) return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    } catch (e) { console.error("Ошибка базы:", e); }
+    } catch (e) {}
     return {};
 }
 
 function saveDB(db) {
-    try { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8'); }
-    catch (e) { console.error("Ошибка сохранения базы:", e); }
+    try { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8'); } catch (e) {}
 }
 
 function loadUsedPayments() {
     try {
         if (fs.existsSync(PAYMENTS_FILE)) return JSON.parse(fs.readFileSync(PAYMENTS_FILE, 'utf8'));
-    } catch (e) { console.error("Ошибка чтения платежей:", e); }
+    } catch (e) {}
     return [];
 }
 
 function saveUsedPayments(list) {
-    try { fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(list, null, 2), 'utf8'); }
-    catch (e) { console.error("Ошибка сохранения платежей:", e); }
+    try { fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(list, null, 2), 'utf8'); } catch (e) {}
 }
 
 let usersDatabase = loadDB();
@@ -142,10 +140,8 @@ async function processPaymentCode(login, paymentId) {
     }
 }
 
-// --- API САЙТА ---
-app.get('/', (req, res) => {
-    res.send('FlorezokVPN Backend is running!');
-});
+// --- API ---
+app.get('/', (req, res) => res.send('OK'));
 
 app.post('/api/auth/register', (req, res) => {
     usersDatabase = loadDB();
@@ -314,12 +310,8 @@ bot.on('callback_query', async (query) => {
     }
 });
 
-bot.on('polling_error', (error) => {
-    if (!error.message.includes('409 Conflict')) {
-        console.error("Polling error:", error);
-    }
-});
+bot.on('polling_error', () => {});
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Сервер и бот успешно запущены на порту ${PORT}`);
+    console.log(`Server started on port ${PORT}`);
 });
