@@ -10,13 +10,10 @@ app.use(cors());
 const YOOKASSA_SHOP_ID = '1519153'; 
 const YOOKASSA_SECRET_KEY = 'Live_5uXug7x_gmbn-wWBRnzYhGviCtLZRs8mzOfHWOQL5f8'; 
 
-// База данных пользователей в памяти сервера
 const database = {};
 
-// Глобальная заглушка по умолчанию для истекших подписок
 let globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF%20%E2%80%A2%20%D0%9F%D0%A0%D0%9E%D0%94%D0%9B%D0%98%D0%A2%D0%AC%20%D0%9D%D0%90%20%D0%A1%D0%90%D0%99%D0%A2%D0%95";
 
-// Твои 20 базовых VLESS-ключей
 const defaultVlessKeys = [
     "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%201",
     "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%202",
@@ -40,15 +37,16 @@ const defaultVlessKeys = [
     "vless://255a8044-3337-473e-af26-46a37208adcc@194.55.239.86:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=piston.kachow.ink&fp=firefox&pbk=wl48cP9KpZxoAqUAePYqVmjNHO2gOzW_QCm3okkiLks&sid=87ac946b53bb52f5&type=tcp&headerType=none#%F0%9F%87%AA%F0%9F%87%AA%D0%AD%D1%81%D1%82%D0%BE%D0%BD%D0%B8%D1%8F"
 ];
 
-// 1. Создание платежа в ЮKassa
+// Создание платежа
 app.post('/api/create-payment', async (req, res) => {
     try {
         const { userId, durationMinutes, amount, description } = req.body;
 
         if (!userId || !durationMinutes || !amount) {
-            return res.status(400).json({ success: false, message: 'Неверные данные платежа' });
+            return res.status(400).json({ success: false, message: 'Неверные данные' });
         }
 
+        const cleanTg = userId.replace('@', '').trim();
         const idempotenceKey = 'idempotence_' + Math.random().toString(36).substring(2, 15);
         const authHeader = 'Basic ' + Buffer.from(`${YOOKASSA_SHOP_ID}:${YOOKASSA_SECRET_KEY}`).toString('base64');
 
@@ -61,18 +59,17 @@ app.post('/api/create-payment', async (req, res) => {
             },
             body: JSON.stringify({
                 amount: {
-                    value: amount.toFixed(2),
+                    value: Number(amount).toFixed(2),
                     currency: 'RUB'
                 },
                 confirmation: {
                     type: 'redirect',
-                    // Возврат пользователя на твой основной домен после оплаты
                     return_url: 'https://florezokvpn.samp.date/' 
                 },
                 capture: true,
-                description: description || 'Оплата подписки FlorezokVPN',
+                description: description || `Подписка FlorezokVPN (@${cleanTg})`,
                 metadata: {
-                    userId: userId,
+                    userId: cleanTg,
                     durationMinutes: durationMinutes
                 }
             })
@@ -83,16 +80,16 @@ app.post('/api/create-payment', async (req, res) => {
         if (payment && payment.confirmation && payment.confirmation.confirmation_url) {
             res.json({ success: true, confirmationUrl: payment.confirmation.confirmation_url });
         } else {
-            console.error("Ошибка от ответа ЮKassa:", payment);
+            console.error("Ошибка ЮKassa:", payment);
             res.status(400).json({ success: false, message: 'Ошибка ответа ЮKassa', error: payment });
         }
     } catch (e) {
-        console.error("Ошибка создания платежа в ЮKassa:", e);
+        console.error("Ошибка платежного шлюза:", e);
         res.status(500).json({ success: false, message: 'Ошибка платежного шлюза' });
     }
 });
 
-// 2. Вебхук от ЮKassa
+// Вебхук оплаты
 app.post('/api/yookassa-webhook', async (req, res) => {
     try {
         const event = req.body;
@@ -102,58 +99,35 @@ app.post('/api/yookassa-webhook', async (req, res) => {
             const metadata = paymentObject.metadata;
 
             if (metadata && metadata.userId && metadata.durationMinutes) {
-                const userId = metadata.userId;
+                const tgUser = metadata.userId.replace('@', '').trim();
                 const durationMinutes = parseInt(metadata.durationMinutes);
                 const expiresAt = Date.now() + durationMinutes * 60 * 1000;
 
-                if (!database[userId]) {
-                    database[userId] = {
+                if (!database[tgUser]) {
+                    database[tgUser] = {
                         expiresAt: expiresAt,
                         hiddenServers: [],
                         personalExpiredKey: null
                     };
                 } else {
-                    database[userId].expiresAt = expiresAt;
+                    database[tgUser].expiresAt = expiresAt;
                 }
 
-                console.log(`[УСПЕШНАЯ ОПЛАТА] Пользователю ${userId} активирована подписка на ${durationMinutes} минут.`);
+                console.log(`[ОПЛАТА УСПЕШНА] @${tgUser} выдано ${durationMinutes} минут.`);
             }
         }
 
         res.status(200).send('OK');
     } catch (e) {
-        console.error("Ошибка вебхука ЮKassa:", e);
+        console.error("Ошибка вебхука:", e);
         res.status(500).send('Error');
     }
 });
 
-// 3. Бесплатный тестовый период (1 минута)
-app.post('/api/admin/grant', (req, res) => {
-    const { userId, durationMinutes = 1 } = req.body;
-    
-    if (!userId) {
-        return res.status(400).json({ success: false, message: 'Не указан ID' });
-    }
-
-    const expiresAt = Date.now() + durationMinutes * 60 * 1000;
-
-    if (!database[userId]) {
-        database[userId] = {
-            expiresAt: expiresAt,
-            hiddenServers: [],
-            personalExpiredKey: null
-        };
-    } else {
-        database[userId].expiresAt = expiresAt;
-    }
-
-    res.json({ success: true, message: 'Активировано' });
-});
-
-// 4. Проверка статуса подписки
+// Проверка статуса
 app.get('/api/status/:userId', (req, res) => {
-    const { userId } = req.params;
-    const user = database[userId];
+    const tgUser = req.params.userId.replace('@', '').trim();
+    const user = database[tgUser];
 
     if (!user || Date.now() > user.expiresAt) {
         return res.json({ active: false, timeLeftMs: 0 });
@@ -165,10 +139,10 @@ app.get('/api/status/:userId', (req, res) => {
     });
 });
 
-// 5. Динамическая генерация подписки для happ / Hiddify
+// Генерация VLESS подписки
 app.get('/api/sub/:userId', (req, res) => {
-    const { userId } = req.params;
-    const user = database[userId];
+    const tgUser = req.params.userId.replace('@', '').trim();
+    const user = database[tgUser];
 
     res.set('Content-Type', 'text/plain; charset=utf-8');
 
@@ -176,10 +150,10 @@ app.get('/api/sub/:userId', (req, res) => {
         const expireSeconds = Math.floor(user.expiresAt / 1000);
         const headers = [
             `#profile-update-interval: 1`,
-            `#profile-title: 🏳️ Florezok Белые списки`,
+            `#profile-title: 🏳️ Florezok (@${tgUser})`,
             `#profile-web-page-url: https://t.me/pwrvod`,
             `#support-url: https://t.me/pwrvod`,
-            `#announce: 🌟 Florezok VPN 🚀 Спонсор @pwrvod • 👥 tg @Florezok🏳️ За свободный интернет!`,
+            `#announce: 🌟 Florezok VPN 🚀 Спонсор @pwrvod • 👥 tg @Florezok🏳️`,
             `#subscription-userinfo: upload=0; download=0; total=0; expire=${expireSeconds}`
         ];
 
@@ -197,13 +171,13 @@ app.get('/api/sub/:userId', (req, res) => {
     return res.send(expiredHeaders.join('\n') + '\n\n' + keyToUse);
 });
 
-// --- АДМИН-ПАНЕЛЬ API ---
+// Админка
 app.post('/api/admin/login', (req, res) => {
     const { username, password } = req.body;
     if (username === 'admin' && password === '123456') {
         res.json({ success: true });
     } else {
-        res.status(401).json({ success: false, message: 'Неверный логин или пароль' });
+        res.status(401).json({ success: false });
     }
 });
 
@@ -228,26 +202,18 @@ app.get('/api/admin/users', (req, res) => {
 });
 
 app.post('/api/admin/update-user', (req, res) => {
-    const { userId, addMinutes, hiddenServers, personalExpiredKey, expireNow } = req.body;
-    const user = database[userId];
+    const { userId, addMinutes, expireNow } = req.body;
+    const tgUser = userId ? userId.replace('@', '').trim() : null;
+    const user = database[tgUser];
 
     if (!user) return res.status(404).json({ success: false });
 
     if (expireNow) {
-        user.expiresAt = 0; // Полный сброс/удаление подписки
+        user.expiresAt = 0;
     } else if (addMinutes) {
         user.expiresAt += parseInt(addMinutes) * 60 * 1000;
     }
 
-    if (hiddenServers !== undefined) user.hiddenServers = hiddenServers;
-    if (personalExpiredKey !== undefined) user.personalExpiredKey = personalExpiredKey;
-
-    res.json({ success: true });
-});
-
-app.post('/api/admin/set-global-expired', (req, res) => {
-    const { expiredKey } = req.body;
-    if (expiredKey) globalExpiredKey = expiredKey;
     res.json({ success: true });
 });
 
