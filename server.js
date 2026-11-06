@@ -11,7 +11,12 @@ const BACKEND_URL = 'https://florezokvpn.samp.date';
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.options('*', cors());
 
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 const DB_FILE = path.join(__dirname, 'users.json');
@@ -38,22 +43,20 @@ function saveDB(db) {
 
 let usersDatabase = loadDB();
 
-let globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF%20%E2%80%A2%20%D0%9F%D0%A0%D0%9E%D0%94%D0%9B%D0%98%D0%A2%D0%AC%20%D0%9D%D0%90%20%D0%A1%D0%90%D0%99%D0%A2%D0%95";
+let globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF%20%E2%80%A2%20%D0%9F%D0%A0%D0%9E%D0%94%D0%9B%D0%98%D0%AC%20%D0%9D%D0%90%20%D0%A1%D0%90%D0%99%D0%A2%D0%95";
 
 const defaultVlessKeys = [
     "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%201",
-    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%202",
-    "vless://d16f7276-b967-440d-88b7-76945654ed55@188.225.79.22:443?encryption=none&security=reality&sni=quartzops.blog&fp=firefox&pbk=LqyEitRDFcMxFuH45Vx1551cOqrI6UHYvkKgs7gNaho&sid=e347493990237143&type=grpc&mode=gun&authority=&serviceName=grpc-baf3bc8498#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%203",
-    "vless://d16f7276-b967-440d-88b7-76945654ed55@188.225.79.22:443?encryption=none&security=reality&sni=quartzops.blog&fp=firefox&pbk=LqyEitRDFcMxFuH45Vx1551cOqrI6UHYvkKgs7gNaho&sid=e347493990237143&type=grpc&mode=gun&authority=&serviceName=grpc-baf3bc8498#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%204"
+    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%202"
 ];
 
-// --- API САЙТА И ВЕБХУК ЮКАССЫ ---
+// --- API САЙТА ---
 
 app.post('/api/auth/register', (req, res) => {
     usersDatabase = loadDB();
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ success: false, message: 'Заполните все поля' });
-    const login = username.trim();
+    const login = username.trim().toLowerCase();
     if (usersDatabase[login]) return res.status(400).json({ success: false, message: 'Логин уже занят' });
     usersDatabase[login] = { password, expiresAt: 0 };
     saveDB(usersDatabase);
@@ -63,7 +66,7 @@ app.post('/api/auth/register', (req, res) => {
 app.post('/api/auth/login', (req, res) => {
     usersDatabase = loadDB();
     const { username, password } = req.body;
-    const login = username ? username.trim() : '';
+    const login = username ? username.trim().toLowerCase() : '';
     const user = usersDatabase[login];
     if (!user || user.password !== password) {
         return res.status(401).json({ success: false, message: 'Неверный логин или пароль' });
@@ -73,7 +76,7 @@ app.post('/api/auth/login', (req, res) => {
 
 app.get('/api/status/:username', (req, res) => {
     usersDatabase = loadDB();
-    const login = req.params.username.trim();
+    const login = req.params.username.trim().toLowerCase();
     const user = usersDatabase[login];
     if (!user || Date.now() > user.expiresAt) {
         return res.json({ active: false, timeLeftMs: 0 });
@@ -83,7 +86,7 @@ app.get('/api/status/:username', (req, res) => {
 
 app.get('/api/sub/:username', (req, res) => {
     usersDatabase = loadDB();
-    const login = req.params.username.trim();
+    const login = req.params.username.trim().toLowerCase();
     const user = usersDatabase[login];
     res.set('Content-Type', 'text/plain; charset=utf-8');
 
@@ -101,31 +104,42 @@ app.get('/api/sub/:username', (req, res) => {
     return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
 });
 
-// Автоматический вебхук от ЮKassa
+// Автоматический вебхук от ЮKassa (сюда стучится ЮKassa при оплате по ссылке с ?label=ник)
 app.post('/api/webhook/yookassa', (req, res) => {
     const event = req.body;
     
     if (event && event.event === 'payment.succeeded') {
         const payment = event.object;
-        const username = payment.metadata ? payment.metadata.username : null;
-        const days = parseInt(payment.metadata ? payment.metadata.days : 30) || 30;
+        const username = payment.metadata && payment.metadata.username ? payment.metadata.username.toLowerCase() : (payment.description ? payment.description.toLowerCase() : null);
+        const label = payment.label ? payment.label.toLowerCase() : null;
+        
+        const targetUser = label || username;
 
-        if (username) {
+        // По умолчанию добавляем 30 дней (или определяем по сумме/платежу)
+        let days = 30;
+        const amount = payment.amount && payment.amount.value ? parseFloat(payment.amount.value) : 150;
+        if (amount === 1) days = 1;       // Тест за 1 рубль
+        else if (amount === 150) days = 30; // 1 месяц
+        else if (amount === 375) days = 90; // 3 месяца
+        else if (amount === 660) days = 180;// 6 месяцев
+        else if (amount === 1140) days = 365;// 1 год
+
+        if (targetUser) {
             usersDatabase = loadDB();
-            if (!usersDatabase[username]) {
-                usersDatabase[username] = { password: '123', expiresAt: 0 };
+            if (!usersDatabase[targetUser]) {
+                usersDatabase[targetUser] = { password: '123', expiresAt: 0 };
             }
-            const user = usersDatabase[username];
+            const user = usersDatabase[targetUser];
             const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
             user.expiresAt = currentExpire + days * 24 * 60 * 60 * 1000;
             saveDB(usersDatabase);
-            console.log(`✅ Автоматически зачислено дней (${days}) для юзера: ${username}`);
+            console.log(`✅ Автоматически зачислено дней (${days}) для юзера по метке: ${targetUser}`);
         }
     }
     res.status(200).json({ status: 'ok' });
 });
 
-// Админка
+// Админка API
 app.post('/api/admin/login', (req, res) => {
     const { username, password } = req.body;
     if (username === 'admin' && (password === 'admin' || password === 'chiha')) {
@@ -149,7 +163,7 @@ app.get('/api/admin/clients', (req, res) => {
 app.post('/api/admin/save-client', (req, res) => {
     usersDatabase = loadDB();
     const { username, days } = req.body;
-    const login = username ? username.trim() : '';
+    const login = username ? username.trim().toLowerCase() : '';
     const addDays = parseInt(days) || 0;
     if (!login) return res.status(400).json({ success: false, message: 'Укажите логин' });
     if (!usersDatabase[login]) {
@@ -195,7 +209,7 @@ bot.on('message', async (msg) => {
     if (text === 'Купить') {
         const tariffsText = 
             `💎 **Выберите тариф для покупки:**\n\n` +
-            `Ваш аккаунт для привязки: \`${username}\``;
+            `Ваш аккаунт для автоматической привязки: \`${username}\``;
         
         const inlineKeyboard = {
             reply_markup: {
@@ -254,7 +268,7 @@ bot.on('callback_query', (query) => {
             bot.sendMessage(chatId, `🎉 Подписка активна!\n\n🔗 Ваша ссылка подписки:\n\`${subUrl}\``, { parse_mode: 'Markdown' });
         } else {
             bot.answerCallbackQuery(query.id, { text: '❌ Оплата еще не поступила.' });
-            bot.sendMessage(chatId, `⏳ Оплата пока не поступила в систему. Если вы уже оплатили, подождите 10-30 секунд и нажмите кнопку проверки снова.`);
+            bot.sendMessage(chatId, `⏳ Оплата пока не поступила. Если вы только что оплатили, подождите 10-20 секунд и нажмите кнопку проверки снова.`);
         }
     }
 });
