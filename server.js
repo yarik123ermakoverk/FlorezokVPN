@@ -1,12 +1,9 @@
 process.env.NTBA_FIX_350 = 1;
 
-// Полностью глушим отладочные TLS логи в консоли
 const originalConsoleError = console.error;
 console.error = function (...args) {
     const msg = args.join(' ');
-    if (msg.includes('TLSWrap') || msg.includes('TLSSocket') || msg.includes('highWaterMark')) {
-        return;
-    }
+    if (msg.includes('TLSWrap') || msg.includes('TLSSocket') || msg.includes('highWaterMark')) return;
     originalConsoleError.apply(console, args);
 };
 
@@ -18,6 +15,7 @@ const TelegramBot = require('node-telegram-bot-api');
 
 // --- НАСТРОЙКИ ---
 const TELEGRAM_BOT_TOKEN = '9147658037:AAEaYJ56epN4hTrJXEqWm6PTC7qwO3WI7SE';
+const CHANNEL_USERNAME = '@Florezok_VPN'; // Канал для обязательной подписки
 const PORT = process.env.PORT || 3000;
 const BACKEND_URL = 'https://florezokvpn.onrender.com';
 
@@ -68,6 +66,16 @@ const defaultVlessKeys = [
     "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%D0%9E%D0%B1%D1%85%D0%BE%D0%B4_1",
     "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%D0%9E%D0%B1%D1%85%D0%BE%D0%B4_2"
 ];
+
+// Проверка подписки на канал через Telegram API
+async function checkChannelSubscription(userId) {
+    try {
+        const member = await bot.getChatMember(CHANNEL_USERNAME, userId);
+        return ['creator', 'administrator', 'member'].includes(member.status);
+    } catch (e) {
+        return false;
+    }
+}
 
 function grantTrial(username, chatId, botInstance) {
     usersDatabase = loadDB();
@@ -151,7 +159,7 @@ app.post('/api/auth/register', (req, res) => {
     if (usersDatabase[login]) return res.status(400).json({ success: false, message: 'Логин занят' });
     usersDatabase[login] = { password, expiresAt: 0 };
     saveDB(usersDatabase);
-    res.json({ success: true });
+    res.json({ success: true, username: login });
 });
 
 app.post('/api/auth/login', (req, res) => {
@@ -161,6 +169,16 @@ app.post('/api/auth/login', (req, res) => {
     const user = usersDatabase[login];
     if (!user || user.password !== password) return res.status(401).json({ success: false, message: 'Неверные данные' });
     res.json({ success: true, username: login });
+});
+
+// Эндпоинт админ-панели (доступен только для samaevka13)
+app.get('/api/admin/users', (req, res) => {
+    const adminUser = req.headers['x-admin-user'];
+    if (adminUser !== 'samaevka13') {
+        return res.status(403).json({ success: false, message: 'Доступ запрещен' });
+    }
+    usersDatabase = loadDB();
+    res.json({ success: true, users: usersDatabase });
 });
 
 app.post('/api/activate-code', async (req, res) => {
@@ -231,6 +249,25 @@ bot.on('message', async (msg) => {
     }
 
     if (text === '🎁 Пробная подписка') {
+        const isSubscribed = await checkChannelSubscription(userId);
+
+        if (!isSubscribed) {
+            const channelKb = {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '📢 Подписаться на канал', url: 'https://t.me/Florezok_VPN' }],
+                        [{ text: '✅ Я подписался', callback_data: 'check_sub_trial' }]
+                    ]
+                }
+            };
+            return bot.sendMessage(chatId, 
+                `🔔 **Чтобы получить пробную подписку, необходимо подписаться на наш Telegram-канал!**\n\n` +
+                `1. Подпишитесь на официальный канал: ${CHANNEL_USERNAME}\n` +
+                `2. Нажмите кнопку «✅ Я подписался» ниже.`, 
+                { parse_mode: 'Markdown', ...channelKb }
+            );
+        }
+
         grantTrial(username, chatId, bot);
         return;
     }
@@ -269,11 +306,29 @@ bot.on('message', async (msg) => {
                 `🎉 **ПОДПИСКА УСПЕШНО АКТИВИРОВАНА!**\n\n` +
                 `✅ Логин: \`${username}\`\n` +
                 `⏳ Добавлено дней: **${result.days}**\n\n` +
-                `🔗 **Ваша ссылка подписки:**\n\`${result.subUrl}\``, 
+                `🔗 **Ссылка подписки:**\n\`${result.subUrl}\``, 
                 { parse_mode: 'Markdown' }
             );
         } else {
             return bot.sendMessage(chatId, result.message);
+        }
+    }
+});
+
+bot.on('callback_query', async (query) => {
+    if (query.data === 'check_sub_trial') {
+        const userId = query.from.id;
+        const chatId = query.message.chat.id;
+        const username = query.from.username ? query.from.username.toLowerCase() : `tg_${userId}`;
+        
+        const isSubscribed = await checkChannelSubscription(userId);
+
+        if (isSubscribed) {
+            bot.answerCallbackQuery(query.id, { text: '✅ Подписка подтверждена!' });
+            try { bot.deleteMessage(chatId, query.message.message_id); } catch(e){}
+            grantTrial(username, chatId, bot);
+        } else {
+            bot.answerCallbackQuery(query.id, { text: '❌ Вы еще не подписались на канал!', show_alert: true });
         }
     }
 });
