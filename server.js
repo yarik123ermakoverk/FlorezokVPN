@@ -1,14 +1,22 @@
 const express = require('express');
 const cors = require('cors');
+const { YooKassa } = require('@a2seven/yookassa');
+
 const app = express();
 
 app.use(express.json());
 app.use(cors());
 
-// База данных пользователей: { userId: { expiresAt, customServers: [...], customExpiredKey: "..." } }
+// --- НАСТРОЙКИ ЮKASSA ---
+const yookassa = new YooKassa({
+    shopId: '1519153', // Вставь сюда цифры твоего shopId из ЮKassa
+    secretKey: 'Live_5uXug7x_gmbn-wWBRnzYhGviCtLZRs8mzOfHWOQL5f8' // Твой боевой ключ
+});
+
+// База данных пользователей в памяти сервера
 const database = {};
 
-// Глобальная заглушка по умолчанию (если админ не установил другую)
+// Глобальная заглушка по умолчанию для истекших подписок
 let globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF%20%E2%80%A2%20%D0%9F%D0%A0%D0%9E%D0%94%D0%9B%D0%98%D0%A2%D0%AC%20%D0%9D%D0%90%20%D0%A1%D0%90%D0%99%D0%A2%D0%95";
 
 // Все твои 20 базовых VLESS-ключей
@@ -35,32 +43,98 @@ const defaultVlessKeys = [
     "vless://255a8044-3337-473e-af26-46a37208adcc@194.55.239.86:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=piston.kachow.ink&fp=firefox&pbk=wl48cP9KpZxoAqUAePYqVmjNHO2gOzW_QCm3okkiLks&sid=87ac946b53bb52f5&type=tcp&headerType=none#%F0%9F%87%AA%F0%9F%87%AA%D0%AD%D1%81%D1%82%D0%BE%D0%BD%D0%B8%D1%8F"
 ];
 
-// 1. Активация подписки (выдает новый ID)
+// 1. Создание платежа через ЮKassa
+app.post('/api/create-payment', async (req, res) => {
+    try {
+        const { userId, durationMinutes, amount, description } = req.body;
+
+        if (!userId || !durationMinutes || !amount) {
+            return res.status(400).json({ success: false, message: 'Неверные данные платежа' });
+        }
+
+        const payment = await yookassa.createPayment({
+            amount: {
+                value: amount.toFixed(2),
+                currency: 'RUB'
+            },
+            confirmation: {
+                type: 'redirect',
+                return_url: 'https://florezokvpn.onrender.com/' 
+            },
+            capture: true,
+            description: description || 'Оплата подписки FlorezokVPN',
+            metadata: {
+                userId: userId,
+                durationMinutes: durationMinutes
+            }
+        });
+
+        res.json({ success: true, confirmationUrl: payment.confirmation.confirmation_url });
+    } catch (e) {
+        console.error("Ошибка создания платежа в ЮKassa:", e);
+        res.status(500).json({ success: false, message: 'Ошибка платежного шлюза' });
+    }
+});
+
+// 2. Вебхук (Webhook) от ЮKassa — автоматическая активация после успешной оплаты
+app.post('/api/yookassa-webhook', async (req, res) => {
+    try {
+        const event = req.body;
+
+        if (event.event === 'payment.succeeded') {
+            const paymentObject = event.object;
+            const metadata = paymentObject.metadata;
+
+            if (metadata && metadata.userId && metadata.durationMinutes) {
+                const userId = metadata.userId;
+                const durationMinutes = parseInt(metadata.durationMinutes);
+                const expiresAt = Date.now() + durationMinutes * 60 * 1000;
+
+                if (!database[userId]) {
+                    database[userId] = {
+                        expiresAt: expiresAt,
+                        hiddenServers: [],
+                        personalExpiredKey: null
+                    };
+                } else {
+                    database[userId].expiresAt = expiresAt;
+                }
+
+                console.log(`[УСПЕШНАЯ ОПЛАТА] Пользователю ${userId} активирована подписка на ${durationMinutes} минут.`);
+            }
+        }
+
+        res.status(200).send('OK');
+    } catch (e) {
+        console.error("Ошибка вебхука ЮKassa:", e);
+        res.status(500).send('Error');
+    }
+});
+
+// 3. Бесплатный тестовый период (1 минута)
 app.post('/api/admin/grant', (req, res) => {
     const { userId, durationMinutes = 1 } = req.body;
     
     if (!userId) {
-        return res.status(400).json({ success: false, message: 'Не указан ID пользователя' });
+        return res.status(400).json({ success: false, message: 'Не указан ID' });
     }
 
     const expiresAt = Date.now() + durationMinutes * 60 * 1000;
 
-    // Сохраняем или обновляем пользователя
     if (!database[userId]) {
         database[userId] = {
             expiresAt: expiresAt,
-            hiddenServers: [], // индексы скрытых серверов
+            hiddenServers: [],
             personalExpiredKey: null
         };
     } else {
         database[userId].expiresAt = expiresAt;
     }
 
-    console.log(`[ПОКУПКА] Пользователю ${userId} выдана подписка на ${durationMinutes} мин.`);
-    res.json({ success: true, message: `Подписка успешно активирована!` });
+    res.json({ success: true, message: 'Активировано' });
 });
 
-// 2. Проверка статуса подписки
+// 4. Проверка статуса подписки
 app.get('/api/status/:userId', (req, res) => {
     const { userId } = req.params;
     const user = database[userId];
@@ -75,14 +149,13 @@ app.get('/api/status/:userId', (req, res) => {
     });
 });
 
-// 3. Выдача подписки для happ / Hiddify
+// 5. Динамическая генерация подписки для happ / Hiddify
 app.get('/api/sub/:userId', (req, res) => {
     const { userId } = req.params;
     const user = database[userId];
 
     res.set('Content-Type', 'text/plain; charset=utf-8');
 
-    // Если активна — отдаем ключи (исключая те, что админ удалил для этого юзера)
     if (user && Date.now() <= user.expiresAt) {
         const expireSeconds = Math.floor(user.expiresAt / 1000);
         const headers = [
@@ -94,14 +167,10 @@ app.get('/api/sub/:userId', (req, res) => {
             `#subscription-userinfo: upload=0; download=0; total=0; expire=${expireSeconds}`
         ];
 
-        // Фильтруем серверы (удаляем те индексы, которые админ отключил для этого пользователя)
         const activeKeys = defaultVlessKeys.filter((_, index) => !user.hiddenServers.includes(index));
-
-        const fullSubscription = headers.join('\n') + '\n\n' + activeKeys.join('\n\n');
-        return res.send(fullSubscription);
+        return res.send(headers.join('\n') + '\n\n' + activeKeys.join('\n\n'));
     }
 
-    // Если истекла — отдаем заглушку (персональную или глобальную)
     const expiredHeaders = [
         `#profile-update-interval: 1`,
         `#profile-title: ❌ Florezok (Подписка истекла)`,
@@ -113,8 +182,6 @@ app.get('/api/sub/:userId', (req, res) => {
 });
 
 // --- АДМИН-ПАНЕЛЬ API ---
-
-// Проверка пароля админа
 app.post('/api/admin/login', (req, res) => {
     const { username, password } = req.body;
     if (username === 'admin' && password === '123456') {
@@ -124,61 +191,43 @@ app.post('/api/admin/login', (req, res) => {
     }
 });
 
-// Получение списка активных пользователей (автоматически чистит тех, у кого время вышло)
 app.get('/api/admin/users', (req, res) => {
     const now = Date.now();
     const activeUsersList = [];
 
     for (const [id, data] of Object.entries(database)) {
-        // Если время истекло, удаляем из базы (согласно твоему требованию: "пропадает в админ панели")
         if (now > data.expiresAt) {
-            delete database[id];
+            delete database[id]; // Автоматически удаляем истекших из панели
             continue;
         }
 
         activeUsersList.push({
             userId: id,
-            expiresAt: data.expiresAt,
             timeLeftMinutes: Math.ceil((data.expiresAt - now) / (60 * 1000)),
-            hiddenServers: data.hiddenServers,
-            hasPersonalExpiredKey: !!data.personalExpiredKey
+            hiddenServers: data.hiddenServers
         });
     }
 
     res.json({ users: activeUsersList, defaultServersCount: defaultVlessKeys.length });
 });
 
-// Админ: редактировать подписку / удалить серверы / дать персональную заглушку
 app.post('/api/admin/update-user', (req, res) => {
     const { userId, addMinutes, hiddenServers, personalExpiredKey } = req.body;
     const user = database[userId];
 
-    if (!user) {
-        return res.status(404).json({ success: false, message: 'Пользователь не найден или его подписка уже истекла' });
-    }
+    if (!user) return res.status(404).json({ success: false });
 
-    if (addMinutes) {
-        user.expiresAt += parseInt(addMinutes) * 60 * 1000;
-    }
-    if (hiddenServers !== undefined) {
-        user.hiddenServers = hiddenServers; // массив индексов
-    }
-    if (personalExpiredKey !== undefined) {
-        user.personalExpiredKey = personalExpiredKey;
-    }
+    if (addMinutes) user.expiresAt += parseInt(addMinutes) * 60 * 1000;
+    if (hiddenServers !== undefined) user.hiddenServers = hiddenServers;
+    if (personalExpiredKey !== undefined) user.personalExpiredKey = personalExpiredKey;
 
-    res.json({ success: true, message: 'Данные пользователя обновлены' });
+    res.json({ success: true });
 });
 
-// Админ: установить глобальную заглушку для всех
 app.post('/api/admin/set-global-expired', (req, res) => {
     const { expiredKey } = req.body;
-    if (expiredKey) {
-        globalExpiredKey = expiredKey;
-        res.json({ success: true, message: 'Глобальная заглушка успешно изменена' });
-    } else {
-        res.status(400).json({ success: false, message: 'Пустой ключ' });
-    }
+    if (expiredKey) globalExpiredKey = expiredKey;
+    res.json({ success: true });
 });
 
 const PORT = process.env.PORT || 3000;
