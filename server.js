@@ -60,29 +60,23 @@ async function sendTelegram(chatId, text, replyMarkup = null) {
         const body = { chat_id: chatId, text: text, parse_mode: 'Markdown' };
         if (replyMarkup) body.reply_markup = replyMarkup;
 
-        const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-        const data = await res.json();
-        console.log("SendTelegram response:", data);
-    } catch (e) {
-        console.error("SendTelegram error:", e);
-    }
+    } catch (e) {}
 }
 
 async function checkChannelSubscription(userId) {
     try {
         const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChatMember?chat_id=${encodeURIComponent(CHANNEL_USERNAME)}&user_id=${userId}`);
         const data = await res.json();
-        console.log("CheckChannelSubscription data:", data);
         if (data.ok && data.result) {
             return ['creator', 'administrator', 'member'].includes(data.result.status);
         }
         return false;
     } catch (e) {
-        console.error("CheckChannelSubscription error:", e);
         return false;
     }
 }
@@ -218,15 +212,13 @@ app.get('/api/sub/:username', (req, res) => {
 app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
     res.sendStatus(200);
     const update = req.body;
-    console.log("Incoming Telegram update:", JSON.stringify(update));
-
     if (!update) return;
 
     if (update.message) {
         const msg = update.message;
         const chatId = msg.chat.id;
         const userId = msg.from.id;
-        const text = msg.text;
+        const text = msg.text ? msg.text.trim() : '';
         const username = msg.from.username ? msg.from.username.toLowerCase() : `tg_${userId}`;
 
         if (!text) return;
@@ -255,7 +247,8 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
                 ]
             };
             await sendTelegram(chatId, tariffsText, inlineKeyboard);
-        } else if (text === '🎁 Пробная подписка') {
+        } else if (text.includes('Пробная подписка') || text.includes('пробн')) {
+            // Проверка подписки с защитой от сбоев
             const isSubscribed = await checkChannelSubscription(userId);
             if (!isSubscribed) {
                 const channelKb = {
