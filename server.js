@@ -6,15 +6,16 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// База данных пользователей: логин -> { password, expiresAt, hiddenServers }
+// База данных пользователей: логин -> { password, expiresAt }
 const usersDatabase = {}; 
 
+// Заглушка для тех, у кого подписка кончилась
 let globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF%20%E2%80%A2%20%D0%9F%D0%A0%D0%9E%D0%94%D0%9B%D0%98%D0%A2%D0%AC%20%D0%9D%D0%90%20%D0%A1%D0%90%D0%99%D0%A2%D0%95";
 
-// Твой полный оригинальный список серверов
+// Полный список твоих серверов для всех с активной подпиской
 const defaultVlessKeys = [
     "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%201",
-    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%202",
+    "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%spisok...#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%202",
     "vless://d16f7276-b967-440d-88b7-76945654ed55@188.225.79.22:443?encryption=none&security=reality&sni=quartzops.blog&fp=firefox&pbk=LqyEitRDFcMxFuH45Vx1551cOqrI6UHYvkKgs7gNaho&sid=e347493990237143&type=grpc&mode=gun&authority=&serviceName=grpc-baf3bc8498#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%203",
     "vless://d16f7276-b967-440d-88b7-76945654ed55@188.225.79.22:443?encryption=none&security=reality&sni=quartzops.blog&fp=firefox&pbk=LqyEitRDFcMxFuH45Vx1551cOqrI6UHYvkKgs7gNaho&sid=e347493990237143&type=grpc&mode=gun&authority=&serviceName=grpc-baf3bc8498#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%204",
     "vless://00d09ead-4080-4c39-a75d-be7dcabe77f4@217.19.122.170:8443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=bm9.hat.onl&fp=qq&pbk=Dx5aV0n9e1j_YDhVk8Z4O9HPrg1HLAuGKlmQpgERgDo&sid=8eeca41a32d1523d&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%205",
@@ -43,7 +44,7 @@ app.post('/api/auth/register', (req, res) => {
     const login = username.trim();
     if (usersDatabase[login]) return res.status(400).json({ success: false, message: 'Логин уже занят' });
 
-    usersDatabase[login] = { password, expiresAt: 0, hiddenServers: [] };
+    usersDatabase[login] = { password, expiresAt: 0 };
     res.json({ success: true, message: 'Регистрация успешна' });
 });
 
@@ -70,7 +71,7 @@ app.get('/api/status/:username', (req, res) => {
     res.json({ active: true, timeLeftMs: user.expiresAt - Date.now() });
 });
 
-// Генерация ссылки подписки с учетом скрытых серверов
+// Генерация ссылки подписки (если активна — все серверы, если нет — заглушка)
 app.get('/api/sub/:username', (req, res) => {
     const login = req.params.username.trim();
     const user = usersDatabase[login];
@@ -84,12 +85,7 @@ app.get('/api/sub/:username', (req, res) => {
             `#profile-title: 🏳️ Florezok (${login})`,
             `#subscription-userinfo: upload=0; download=0; total=0; expire=${expireSeconds}`
         ];
-        
-        // Фильтруем серверы, исключая те, которые админ скрыл для этого юзера
-        const hidden = user.hiddenServers || [];
-        const activeKeys = defaultVlessKeys.filter((_, idx) => !hidden.includes(idx));
-
-        return res.send(headers.join('\n') + '\n\n' + activeKeys.join('\n\n'));
+        return res.send(headers.join('\n') + '\n\n' + defaultVlessKeys.join('\n\n'));
     }
 
     const expiredHeaders = [`#profile-update-interval: 1`, `#profile-title: ❌ Подписка истекла`];
@@ -106,7 +102,6 @@ app.post('/api/admin/login', (req, res) => {
     }
 });
 
-// Список всех клиентов для админки
 app.get('/api/admin/clients', (req, res) => {
     const now = Date.now();
     const list = [];
@@ -116,39 +111,28 @@ app.get('/api/admin/clients', (req, res) => {
         list.push({
             username: login,
             active: active,
-            expiresAt: user.expiresAt,
-            hiddenServers: user.hiddenServers || []
+            expiresAt: user.expiresAt
         });
     }
 
-    res.json({ clients: list, allServers: defaultVlessKeys.map((k, i) => {
-        // Достаем название сервера из ссылки (после знака #)
-        const parts = k.split('#');
-        return { index: i, name: parts[1] ? decodeURIComponent(parts[1]) : `Сервер #${i+1}` };
-    })});
+    res.json({ clients: list });
 });
 
-// Создание / продление подписки и управление серверами
+// Создание / продление подписки админом
 app.post('/api/admin/save-client', (req, res) => {
-    const { username, days, hiddenServers } = req.body;
+    const { username, days } = req.body;
     const login = username ? username.trim() : '';
+    const addDays = parseInt(days) || 0;
 
     if (!login) return res.status(400).json({ success: false, message: 'Укажите логин' });
 
     if (!usersDatabase[login]) {
-        usersDatabase[login] = { password: '123', expiresAt: 0, hiddenServers: [] };
+        usersDatabase[login] = { password: '123', expiresAt: 0 };
     }
 
     const user = usersDatabase[login];
-
-    if (days && parseInt(days) > 0) {
-        const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
-        user.expiresAt = currentExpire + parseInt(days) * 24 * 60 * 60 * 1000;
-    }
-
-    if (Array.isArray(hiddenServers)) {
-        user.hiddenServers = hiddenServers;
-    }
+    const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
+    user.expiresAt = currentExpire + addDays * 24 * 60 * 60 * 1000;
 
     res.json({ success: true });
 });
