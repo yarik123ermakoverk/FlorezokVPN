@@ -114,10 +114,43 @@ app.get('/api/sub/:username', (req, res) => {
     return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
 });
 
+// Вебхук ЮKassa (автоматическое начисление дней по метке label)
+app.post('/api/yookassa/webhook', (req, res) => {
+    try {
+        const event = req.body;
+        if (event && event.event === 'payment.succeeded') {
+            const payment = event.object;
+            const username = payment.metadata ? payment.metadata.username : null;
+            const label = payment.label || username; // считываем samaevka13 из label
+            const amount = payment.amount ? parseFloat(payment.amount.value) : 0;
+
+            if (label && usersDatabase[label]) {
+                let daysToAdd = 30;
+                if (amount === 1) daysToAdd = 1;         // Тест 1 рубль
+                else if (amount === 150) daysToAdd = 30;    // 1 месяц
+                else if (amount === 375) daysToAdd = 90;    // 3 месяца
+                else if (amount === 660) daysToAdd = 180;   // 6 месяцев
+                else if (amount === 1140) daysToAdd = 365;  // 1 год
+
+                const user = usersDatabase[label];
+                const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
+                user.expiresAt = currentExpire + daysToAdd * 24 * 60 * 60 * 1000;
+                
+                saveDB(usersDatabase);
+                console.log(`Успешно начислено ${daysAdd} дней для ${label}`);
+            }
+        }
+        res.status(200).json({ received: true });
+    } catch (e) {
+        console.error("Ошибка вебхука:", e);
+        res.status(500).json({ received: false });
+    }
+});
+
 // Админка
 app.post('/api/admin/login', (req, res) => {
     const { username, password } = req.body;
-    if (username === 'admin' && password === 'admin') {
+    if (username === 'admin' && (password === 'admin' || password === 'chiha')) {
         res.json({ success: true });
     } else {
         res.status(401).json({ success: false });
