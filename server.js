@@ -1,3 +1,5 @@
+process.env.NTBA_FIX_350 = 1;
+
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -65,7 +67,6 @@ async function checkChannelSubscription(userId) {
         const member = await bot.getChatMember(CHANNEL_USERNAME, userId);
         return ['creator', 'administrator', 'member'].includes(member.status);
     } catch (e) {
-        console.error("Ошибка проверки подписки:", e.message);
         return false;
     }
 }
