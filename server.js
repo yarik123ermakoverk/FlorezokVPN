@@ -203,6 +203,9 @@ bot.onText(/\/start/, (msg) => {
 });
 
 bot.on('message', async (msg) => {
+    // ЗАЩИТА: если сообщение без текста (например, картинка или стикер), просто выходим
+    if (!msg.text) return;
+
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const text = msg.text;
