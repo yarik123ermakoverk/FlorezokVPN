@@ -2,7 +2,7 @@
 #profile-title: 🏳️ Florezok Белые списки
 #profile-web-page-url: https://t.me/pwrvod
 #support-url: https://t.me/pwrvod
-#announce: 🌟 Florezok VPN 🚀 Спонсор @pwrvod • осталось 3 дня
+#announce: 🌟 Florezok VPN 🚀 Спонсор @pwrvod • осталось 2 дня
 #subscription-userinfo: upload=0; download=0; total=0; expire=2
 
 vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%201
