@@ -1,13 +1,14 @@
 {
-  "name": "florezok-vpn-backend",
+  "name": "florezok-vpn-server",
   "version": "1.0.0",
-  "description": "FlorezokVPN Subscription Backend",
+  "description": "FlorezokVPN backend with YooKassa and VLESS subscription management",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "@a2seven/yookassa": "^1.2.0",
     "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "express": "^4.18.2"
   }
 }

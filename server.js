@@ -9,7 +9,7 @@ app.use(cors());
 
 // --- НАСТРОЙКИ ЮKASSA ---
 const yookassa = new YooKassa({
-    shopId: '1519153', // Вставь сюда цифры твоего shopId из ЮKassa
+    shopId: '1519153', // Обязательно вставь сюда цифры своего shopId (например: '123456')
     secretKey: 'Live_5uXug7x_gmbn-wWBRnzYhGviCtLZRs8mzOfHWOQL5f8' // Твой боевой ключ
 });
 
@@ -76,7 +76,7 @@ app.post('/api/create-payment', async (req, res) => {
     }
 });
 
-// 2. Вебхук (Webhook) от ЮKassa — автоматическая активация после успешной оплаты
+// 2. Вебхук от ЮKassa
 app.post('/api/yookassa-webhook', async (req, res) => {
     try {
         const event = req.body;
@@ -197,7 +197,7 @@ app.get('/api/admin/users', (req, res) => {
 
     for (const [id, data] of Object.entries(database)) {
         if (now > data.expiresAt) {
-            delete database[id]; // Автоматически удаляем истекших из панели
+            delete database[id];
             continue;
         }
 
