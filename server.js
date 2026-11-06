@@ -10,7 +10,6 @@ app.use(cors());
 
 const DB_FILE = path.join(__dirname, 'users.json');
 
-// Загрузка базы из файла при старте
 function loadDB() {
     try {
         if (fs.existsSync(DB_FILE)) {
@@ -23,7 +22,6 @@ function loadDB() {
     return {};
 }
 
-// Сохранение базы в файл
 function saveDB(db) {
     try {
         fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
@@ -114,6 +112,39 @@ app.get('/api/sub/:username', (req, res) => {
 
     const expiredHeaders = [`#profile-update-interval: 1`, `#profile-title: ❌ Подписка истекла`];
     return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
+});
+
+// --- ВЕБХУК ОТ ЮKASSA (АВТОМАТИЗАЦИЯ ОПЛАТЫ) ---
+app.post('/api/yookassa/webhook', (req, res) => {
+    try {
+        const event = req.body;
+        if (event && event.event === 'payment.succeeded') {
+            const payment = event.object;
+            const username = payment.metadata ? payment.metadata.username : null;
+            const amount = payment.amount ? parseFloat(payment.amount.value) : 0;
+
+            if (username && usersDatabase[username]) {
+                // Определяем количество дней в зависимости от суммы оплаты
+                let daysToAdd = 30; // По умолчанию
+                if (amount === 1) daysToAdd = 1;       // Тест (1 рубль) - дадим 1 день или тестовые минуты
+                else if (amount === 150) daysToAdd = 30;  // 1 месяц
+                else if (amount === 375) daysToAdd = 90;  // 3 месяца
+                else if (amount === 660) daysToAdd = 180; // 6 месяцев
+                else if (amount === 1140) daysToAdd = 365;// 1 год
+
+                const user = usersDatabase[username];
+                const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
+                user.expiresAt = currentExpire + daysToAdd * 24 * 60 * 60 * 1000;
+                
+                saveDB(usersDatabase);
+                console.log(`Автоматически продлена подписка для юзера ${username} на ${daysAdd} дней.`);
+            }
+        }
+        res.status(200).json({ received: true });
+    } catch (e) {
+        console.error("Ошибка в вебхуке ЮKassa:", e);
+        res.status(500).json({ received: false });
+    }
 });
 
 // Админка
