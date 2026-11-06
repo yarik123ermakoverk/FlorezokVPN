@@ -103,7 +103,7 @@ app.get('/api/sub/:username', (req, res) => {
     return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
 });
 
-// Вебхук от ЮKassa (автоматическое зачисление подписки при оплате)
+// Автоматический вебхук от ЮKassa (срабатывает сразу после успешной оплаты)
 app.post('/api/webhook/yookassa', (req, res) => {
     const event = req.body;
     
@@ -121,7 +121,7 @@ app.post('/api/webhook/yookassa', (req, res) => {
             const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
             user.expiresAt = currentExpire + days * 24 * 60 * 60 * 1000;
             saveDB(usersDatabase);
-            console.log(`✅ Платеж от ЮKassa успешно зачислен для юзера: ${username} на ${days} дней`);
+            console.log(`✅ Автоматически зачислено дней (${days}) для юзера: ${username}`);
         }
     }
     res.status(200).json({ status: 'ok' });
@@ -180,8 +180,8 @@ bot.onText(/\/start/, (msg) => {
     const keyboard = {
         reply_markup: {
             keyboard: [
-                [{ text: '💎 Купить / Продлить подписку' }, { text: '👤 Мой профиль' }],
-                [{ text: '📱 Инструкция по настройке' }]
+                [{ text: 'Купить' }, { text: 'Мой профиль' }],
+                [{ text: 'Инструкция' }]
             ],
             resize_keyboard: true
         }
@@ -194,17 +194,20 @@ bot.on('message', async (msg) => {
     const text = msg.text;
     const username = msg.from.username ? msg.from.username.toLowerCase() : `tg_${msg.from.id}`;
 
-    if (text === '💎 Купить / Продлить подписку') {
-        // Создаем ссылки для оплаты через API ЮKassa автоматически или отправляем на сайт с готовым логином
+    if (text === 'Купить') {
         const tariffsText = 
-            `💎 **Выберите тариф:**\n\n` +
-            `Ваш аккаунт в системе: \`${username}\`\n\n` +
-            `Нажмите кнопку ниже, чтобы открыть выбор тарифов и оплатить подписку:`;
+            `💎 **Выберите тариф для покупки:**\n\n` +
+            `Ваш аккаунт для привязки: \`${username}\``;
         
+        // Ссылки ЮKassa с параметром ?label= для автоматического определения юзера
         const inlineKeyboard = {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: 'Купить', url: `${BACKEND_URL}/#tariffs-section` }],
+                    [{ text: 'Тест (1 рубль)', url: `https://yookassa.ru/my/i/au40gd6mmFd5/l?label=${username}` }],
+                    [{ text: '1 Месяц (150 ₽)', url: `https://yookassa.ru/my/i/au4a647hWPzD/l?label=${username}` }],
+                    [{ text: '3 Месяца (375 ₽)', url: `https://yookassa.ru/my/i/au4bJLCp8dGe/l?label=${username}` }],
+                    [{ text: '6 Месяцев (660 ₽)', url: `https://yookassa.ru/my/i/au4bSkpIvx0J/l?label=${username}` }],
+                    [{ text: '1 Год (1140 ₽)', url: `https://yookassa.ru/my/i/au4bZXML-7FH/l?label=${username}` }],
                     [{ text: '🔄 Проверить оплату', callback_data: 'check_sub' }]
                 ]
             }
@@ -213,7 +216,7 @@ bot.on('message', async (msg) => {
         bot.sendMessage(chatId, tariffsText, { parse_mode: 'Markdown', ...inlineKeyboard });
     }
 
-    if (text === '👤 Мой профиль') {
+    if (text === 'Мой профиль') {
         const db = loadDB();
         const user = db[username];
         const now = Date.now();
@@ -234,8 +237,8 @@ bot.on('message', async (msg) => {
         }
     }
 
-    if (text === '📱 Инструкция по настройке') {
-        bot.sendMessage(chatId, `📖 **Как настроить VPN:**\n1. Скачайте приложение **happ** или Hiddify.\n2. Скопируйте ссылку из раздела «👤 Мой профиль».\n3. Добавьте её в приложение и включите VPN! 🚀`, { parse_mode: 'Markdown' });
+    if (text === 'Инструкция') {
+        bot.sendMessage(chatId, `📖 **Как настроить VPN:**\n1. Скачайте приложение **happ** или Hiddify.\n2. Скопируйте ссылку из раздела «Мой профиль».\n3. Добавьте её в приложение и включите VPN! 🚀`, { parse_mode: 'Markdown' });
     }
 });
 
