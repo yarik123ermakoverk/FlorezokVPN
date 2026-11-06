@@ -1,41 +1,13 @@
 const express = require('express');
 const cors = require('cors');
-const mysql = require('mysql2/promise');
 
 const app = express();
 
 app.use(express.json());
 app.use(cors());
 
-// Подключение к твоей MySQL базе данных
-// Если база на удаленном хостинге, замени 'localhost' на IP или домен хостинга базы данных
-const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost', 
-    user: 'whg127619_',
-    password: 'qwerty123',
-    database: 'whg127619_',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-});
-
-// Автоматическая проверка/создание таблицы при старте
-async function initDB() {
-    try {
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                username VARCHAR(255) PRIMARY KEY,
-                password VARCHAR(255) NOT NULL,
-                expires_at BIGINT DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-        console.log("Таблица users успешно проверена/создана в MySQL.");
-    } catch (e) {
-        console.error("Ошибка подключения к MySQL:", e.message);
-    }
-}
-initDB();
+// База данных в памяти сервера (надежно работает на Render)
+const usersDatabase = {}; // логин -> { password, expiresAt }
 
 let globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF";
 
@@ -45,81 +17,66 @@ const defaultVlessKeys = [
 ];
 
 // Регистрация
-app.post('/api/auth/register', async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        if (!username || !password) return res.status(400).json({ success: false, message: 'Заполните все поля' });
-        
-        const login = username.trim();
-        const [existing] = await pool.query('SELECT * FROM users WHERE username = ?', [login]);
-        if (existing.length > 0) {
-            return res.status(400).json({ success: false, message: 'Логин уже занят' });
-        }
-
-        await pool.query('INSERT INTO users (username, password, expires_at) VALUES (?, ?, 0)', [login, password]);
-        res.json({ success: true, message: 'Регистрация успешна' });
-    } catch (e) {
-        console.error("Ошибка регистрации:", e);
-        res.status(500).json({ success: false, message: 'Ошибка базы данных' });
+app.post('/api/auth/register', (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ success: false, message: 'Заполните все поля' });
+    
+    const login = username.trim();
+    if (usersDatabase[login]) {
+        return res.status(400).json({ success: false, message: 'Логин уже занят' });
     }
+
+    usersDatabase[login] = {
+        password: password,
+        expiresAt: 0 // Изначально подписка неактивна
+    };
+
+    res.json({ success: true, message: 'Регистрация успешна' });
 });
 
 // Авторизация
-app.post('/api/auth/login', async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        const login = username ? username.trim() : '';
-        
-        const [rows] = await pool.query('SELECT * FROM users WHERE username = ?', [login]);
-        if (rows.length === 0 || rows[0].password !== password) {
-            return res.status(401).json({ success: false, message: 'Неверный логин или пароль' });
-        }
-
-        res.json({ success: true, username: login });
-    } catch (e) {
-        console.error("Ошибка входа:", e);
-        res.status(500).json({ success: false, message: 'Ошибка базы данных' });
+app.post('/api/auth/login', (req, res) => {
+    const { username, password } = req.body;
+    const login = username ? username.trim() : '';
+    
+    const user = usersDatabase[login];
+    if (!user || user.password !== password) {
+        return res.status(401).json({ success: false, message: 'Неверный логин или пароль' });
     }
+
+    res.json({ success: true, username: login });
 });
 
-// Проверка статуса подписки
-app.get('/api/status/:username', async (req, res) => {
-    try {
-        const login = req.params.username.trim();
-        const [rows] = await pool.query('SELECT expires_at FROM users WHERE username = ?', [login]);
-        
-        if (rows.length === 0 || Date.now() > rows[0].expires_at) {
-            return res.json({ active: false, timeLeftMs: 0 });
-        }
-        res.json({ active: true, timeLeftMs: rows[0].expires_at - Date.now() });
-    } catch (e) {
-        res.status(500).json({ active: false });
+// Статус подписки
+app.get('/api/status/:username', (req, res) => {
+    const login = req.params.username.trim();
+    const user = usersDatabase[login];
+
+    if (!user || Date.now() > user.expiresAt) {
+        return res.json({ active: false, timeLeftMs: 0 });
     }
+    res.json({ active: true, timeLeftMs: user.expiresAt - Date.now() });
 });
 
 // Получение ссылки подписки (VLESS)
-app.get('/api/sub/:username', async (req, res) => {
-    try {
-        const login = req.params.username.trim();
-        const [rows] = await pool.query('SELECT expires_at FROM users WHERE username = ?', [login]);
-        
-        res.set('Content-Type', 'text/plain; charset=utf-8');
+app.get('/api/sub/:username', (req, res) => {
+    const login = req.params.username.trim();
+    const user = usersDatabase[login];
 
-        if (rows.length > 0 && Date.now() <= rows[0].expires_at) {
-            const expireSeconds = Math.floor(rows[0].expires_at / 1000);
-            const headers = [
-                `#profile-update-interval: 1`,
-                `#profile-title: 🏳️ Florezok (${login})`,
-                `#subscription-userinfo: upload=0; download=0; total=0; expire=${expireSeconds}`
-            ];
-            return res.send(headers.join('\n') + '\n\n' + defaultVlessKeys.join('\n\n'));
-        }
+    res.set('Content-Type', 'text/plain; charset=utf-8');
 
-        const expiredHeaders = [`#profile-update-interval: 1`, `#profile-title: ❌ Подписка истекла`];
-        return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
-    } catch (e) {
-        res.status(500).send('Error loading subscription');
+    if (user && Date.now() <= user.expiresAt) {
+        const expireSeconds = Math.floor(user.expiresAt / 1000);
+        const headers = [
+            `#profile-update-interval: 1`,
+            `#profile-title: 🏳️ Florezok (${login})`,
+            `#subscription-userinfo: upload=0; download=0; total=0; expire=${expireSeconds}`
+        ];
+        return res.send(headers.join('\n') + '\n\n' + defaultVlessKeys.join('\n\n'));
     }
+
+    const expiredHeaders = [`#profile-update-interval: 1`, `#profile-title: ❌ Подписка истекла`];
+    return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
 });
 
 // --- 3X-UI АДМИН-ПАНЕЛЬ ---
@@ -132,55 +89,46 @@ app.post('/api/admin/login', (req, res) => {
     }
 });
 
-app.get('/api/admin/clients', async (req, res) => {
-    try {
-        const [rows] = await pool.query('SELECT username, expires_at FROM users');
-        const now = Date.now();
-        const list = rows.map(r => ({
-            username: r.username,
-            active: now <= r.expires_at,
-            timeLeftMin: now <= r.expires_at ? Math.ceil((r.expires_at - now) / 60000) : 0
-        }));
-        res.json({ clients: list });
-    } catch (e) {
-        res.status(500).json({ clients: [] });
+app.get('/api/admin/clients', (req, res) => {
+    const now = Date.now();
+    const list = [];
+
+    for (const [login, user] of Object.entries(usersDatabase)) {
+        const active = now <= user.expiresAt;
+        list.push({
+            username: login,
+            active: active,
+            timeLeftMin: active ? Math.ceil((user.expiresAt - now) / 60000) : 0
+        });
     }
+
+    res.json({ clients: list });
 });
 
-// Выдача/продление подписки админом
-app.post('/api/admin/save-client', async (req, res) => {
-    try {
-        const { username, days } = req.body;
-        const login = username ? username.trim() : '';
-        const addDays = parseInt(days) || 0;
+// Выдача / продление подписки админом
+app.post('/api/admin/save-client', (req, res) => {
+    const { username, days } = req.body;
+    const login = username ? username.trim() : '';
+    const addDays = parseInt(days) || 0;
 
-        if (!login) return res.status(400).json({ success: false, message: 'Укажите логин' });
+    if (!login) return res.status(400).json({ success: false, message: 'Укажите логин' });
 
-        const [rows] = await pool.query('SELECT expires_at FROM users WHERE username = ?', [login]);
-        
-        if (rows.length === 0) {
-            const expireTime = Date.now() + addDays * 24 * 60 * 60 * 1000;
-            await pool.query('INSERT INTO users (username, password, expires_at) VALUES (?, "123", ?)', [login, expireTime]);
-        } else {
-            const currentExpire = rows[0].expires_at > Date.now() ? rows[0].expires_at : Date.now();
-            const newExpire = currentExpire + addDays * 24 * 60 * 60 * 1000;
-            await pool.query('UPDATE users SET expires_at = ? WHERE username = ?', [newExpire, login]);
-        }
-
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false, message: 'Ошибка базы данных' });
+    if (!usersDatabase[login]) {
+        // Если юзера нет в памяти, создаем автоматически
+        usersDatabase[login] = { password: '123', expiresAt: 0 };
     }
+
+    const user = usersDatabase[login];
+    const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
+    user.expiresAt = currentExpire + addDays * 24 * 60 * 60 * 1000;
+
+    res.json({ success: true });
 });
 
-app.post('/api/admin/delete-client', async (req, res) => {
-    try {
-        const { username } = req.body;
-        await pool.query('DELETE FROM users WHERE username = ?', [username]);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false });
-    }
+app.post('/api/admin/delete-client', (req, res) => {
+    const { username } = req.body;
+    delete usersDatabase[username];
+    res.json({ success: true });
 });
 
 const PORT = process.env.PORT || 3000;
