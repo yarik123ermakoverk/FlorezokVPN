@@ -7,8 +7,8 @@ app.use(express.json());
 app.use(cors());
 
 // --- НАСТРОЙКИ ЮKASSA ---
-const YOOKASSA_SHOP_ID = '1519153'; // Вставь сюда цифры своего shopId (например: '123456')
-const YOOKASSA_SECRET_KEY = 'Live_5uXug7x_gmbn-wWBRnzYhGviCtLZRs8mzOfHWOQL5f8'; // Твой боевой ключ
+const YOOKASSA_SHOP_ID = '1519153'; 
+const YOOKASSA_SECRET_KEY = 'Live_5uXug7x_gmbn-wWBRnzYhGviCtLZRs8mzOfHWOQL5f8'; 
 
 // База данных пользователей в памяти сервера
 const database = {};
@@ -16,7 +16,7 @@ const database = {};
 // Глобальная заглушка по умолчанию для истекших подписок
 let globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF%20%E2%80%A2%20%D0%9F%D0%A0%D0%9E%D0%94%D0%9B%D0%98%D0%A2%D0%AC%20%D0%9D%D0%90%20%D0%A1%D0%90%D0%99%D0%A2%D0%95";
 
-// Все твои 20 базовых VLESS-ключей
+// Твои 20 базовых VLESS-ключей
 const defaultVlessKeys = [
     "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%201",
     "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%F0%9F%87%B7%F0%9F%87%BA%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B1%D0%B5%D0%BB%D1%8B%D1%85%20%D1%81%D0%BF%D0%B8%D1%81%D0%BA%D0%BE%D0%B2%202",
@@ -40,7 +40,7 @@ const defaultVlessKeys = [
     "vless://255a8044-3337-473e-af26-46a37208adcc@194.55.239.86:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=piston.kachow.ink&fp=firefox&pbk=wl48cP9KpZxoAqUAePYqVmjNHO2gOzW_QCm3okkiLks&sid=87ac946b53bb52f5&type=tcp&headerType=none#%F0%9F%87%AA%F0%9F%87%AA%D0%AD%D1%81%D1%82%D0%BE%D0%BD%D0%B8%D1%8F"
 ];
 
-// 1. Создание платежа в ЮKassa через стандартный fetch
+// 1. Создание платежа в ЮKassa
 app.post('/api/create-payment', async (req, res) => {
     try {
         const { userId, durationMinutes, amount, description } = req.body;
@@ -66,7 +66,8 @@ app.post('/api/create-payment', async (req, res) => {
                 },
                 confirmation: {
                     type: 'redirect',
-                    return_url: 'https://florezokvpn.onrender.com/'
+                    // Возврат пользователя на твой основной домен после оплаты
+                    return_url: 'https://florezokvpn.samp.date/' 
                 },
                 capture: true,
                 description: description || 'Оплата подписки FlorezokVPN',
@@ -82,6 +83,7 @@ app.post('/api/create-payment', async (req, res) => {
         if (payment && payment.confirmation && payment.confirmation.confirmation_url) {
             res.json({ success: true, confirmationUrl: payment.confirmation.confirmation_url });
         } else {
+            console.error("Ошибка от ответа ЮKassa:", payment);
             res.status(400).json({ success: false, message: 'Ошибка ответа ЮKassa', error: payment });
         }
     } catch (e) {
@@ -226,12 +228,17 @@ app.get('/api/admin/users', (req, res) => {
 });
 
 app.post('/api/admin/update-user', (req, res) => {
-    const { userId, addMinutes, hiddenServers, personalExpiredKey } = req.body;
+    const { userId, addMinutes, hiddenServers, personalExpiredKey, expireNow } = req.body;
     const user = database[userId];
 
     if (!user) return res.status(404).json({ success: false });
 
-    if (addMinutes) user.expiresAt += parseInt(addMinutes) * 60 * 1000;
+    if (expireNow) {
+        user.expiresAt = 0; // Полный сброс/удаление подписки
+    } else if (addMinutes) {
+        user.expiresAt += parseInt(addMinutes) * 60 * 1000;
+    }
+
     if (hiddenServers !== undefined) user.hiddenServers = hiddenServers;
     if (personalExpiredKey !== undefined) user.personalExpiredKey = personalExpiredKey;
 
