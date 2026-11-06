@@ -1,11 +1,11 @@
 process.env.NTBA_FIX_350 = 1;
 
-// Полностью глушим мусорные TLS-логи в консоли Render
+// Полностью глушим отладочные TLS логи в консоли
 const originalConsoleError = console.error;
 console.error = function (...args) {
     const msg = args.join(' ');
     if (msg.includes('TLSWrap') || msg.includes('TLSSocket') || msg.includes('highWaterMark')) {
-        return; // Игнорируем внутренние сетевые логи Telegram
+        return;
     }
     originalConsoleError.apply(console, args);
 };
@@ -18,7 +18,6 @@ const TelegramBot = require('node-telegram-bot-api');
 
 // --- НАСТРОЙКИ ---
 const TELEGRAM_BOT_TOKEN = '9147658037:AAEaYJ56epN4hTrJXEqWm6PTC7qwO3WI7SE';
-const CHANNEL_USERNAME = '@Florezok_VPN';
 const PORT = process.env.PORT || 3000;
 const BACKEND_URL = 'https://florezokvpn.onrender.com';
 
@@ -70,15 +69,6 @@ const defaultVlessKeys = [
     "vless://fb37d713-0ed3-4146-b085-a5c879a9aafa@81.163.22.194:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=apply.betust.net&fp=firefox&pbk=T98nmnCp0qrmkH1Oq92Tk94sCYa5RuuEjp8bDDbdVxk&sid=b20168a5&spx=%2F&type=tcp&headerType=none#%D0%9E%D0%B1%D1%85%D0%BE%D0%B4_2"
 ];
 
-async function checkChannelSubscription(userId) {
-    try {
-        const member = await bot.getChatMember(CHANNEL_USERNAME, userId);
-        return ['creator', 'administrator', 'member'].includes(member.status);
-    } catch (e) {
-        return false;
-    }
-}
-
 function grantTrial(username, chatId, botInstance) {
     usersDatabase = loadDB();
     const userKey = username.toLowerCase();
@@ -88,7 +78,7 @@ function grantTrial(username, chatId, botInstance) {
     const user = usersDatabase[userKey];
 
     if (user.trialUsed) {
-        return botInstance.sendMessage(chatId, `❌ Вы уже использовали свой пробный период на 5 дней!`);
+        return botInstance.sendMessage(chatId, `❌ Вы уже использовали свою пробную подписку!`);
     }
 
     user.trialUsed = true;
@@ -97,7 +87,7 @@ function grantTrial(username, chatId, botInstance) {
 
     const subUrl = `${BACKEND_URL}/api/sub/${userKey}`;
     botInstance.sendMessage(chatId, 
-        `🎉 **Вам успешно зачислен пробный период на 5 дней!**\n\n` +
+        `🎉 **Вам успешно зачислена пробная подписка на 5 дней!**\n\n` +
         `🔗 **Ваша ссылка подписки:**\n\`${subUrl}\``, 
         { parse_mode: 'Markdown' }
     );
@@ -205,12 +195,12 @@ bot.onText(/\/start/, (msg) => {
         reply_markup: {
             keyboard: [
                 [{ text: '💳 Купить' }, { text: '👤 Мой профиль' }],
-                [{ text: '🎁 Пробный период (5 дней)' }, { text: '📖 Инструкция' }]
+                [{ text: '🎁 Пробная подписка' }, { text: '📖 Инструкция' }]
             ],
             resize_keyboard: true
         }
     };
-    bot.sendMessage(chatId, `👋 Добро пожаловать в **FlorezokVPN**!\n\nВыберите тариф или активируйте бесплатный пробный период на 5 дней!`, { parse_mode: 'Markdown', ...keyboard });
+    bot.sendMessage(chatId, `👋 Добро пожаловать в **FlorezokVPN**!\n\nВыберите тариф или активируйте пробную подписку!`, { parse_mode: 'Markdown', ...keyboard });
 });
 
 bot.on('message', async (msg) => {
@@ -240,21 +230,7 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, tariffsText, { parse_mode: 'Markdown', ...inlineKeyboard });
     }
 
-    if (text === '🎁 Пробный период (5 дней)') {
-        const isSubscribed = await checkChannelSubscription(userId);
-
-        if (!isSubscribed) {
-            const channelKb = {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: '📢 Подписаться на канал', url: 'https://t.me/Florezok_VPN' }],
-                        [{ text: '✅ Я подписался', callback_data: 'check_sub_trial' }]
-                    ]
-                }
-            };
-            return bot.sendMessage(chatId, `🔔 **Для получения пробного периода нужно подписаться на канал!**\n\n1. Нажмите кнопку ниже и подпишитесь на @Florezok_VPN\n2. Вернитесь сюда и нажмите **«✅ Я подписался»**.`, { parse_mode: 'Markdown', ...channelKb });
-        }
-
+    if (text === '🎁 Пробная подписка') {
         grantTrial(username, chatId, bot);
         return;
     }
@@ -298,24 +274,6 @@ bot.on('message', async (msg) => {
             );
         } else {
             return bot.sendMessage(chatId, result.message);
-        }
-    }
-});
-
-bot.on('callback_query', async (query) => {
-    if (query.data === 'check_sub_trial') {
-        const userId = query.from.id;
-        const chatId = query.message.chat.id;
-        const username = query.from.username ? query.from.username.toLowerCase() : `tg_${userId}`;
-        
-        const isSubscribed = await checkChannelSubscription(userId);
-
-        if (isSubscribed) {
-            bot.answerCallbackQuery(query.id, { text: '✅ Подписка подтверждена!' });
-            try { bot.deleteMessage(chatId, query.message.message_id); } catch(e){}
-            grantTrial(username, chatId, bot);
-        } else {
-            bot.answerCallbackQuery(query.id, { text: '❌ Вы еще не подписались на канал или бот не администратор в канале!', show_alert: true });
         }
     }
 });
