@@ -7,7 +7,7 @@ const TelegramBot = require('node-telegram-bot-api');
 // --- НАСТРОЙКИ ---
 const TELEGRAM_BOT_TOKEN = '9147658037:AAEaYJ56epN4hTrJXEqWm6PTC7qwO3WI7SE';
 const PORT = process.env.PORT || 3000;
-const BACKEND_URL = 'https://florezokvpn.samp.date';
+const BACKEND_URL = 'https://florezokvpn.onrender.com'; // 👈 Строго адрес Render
 
 const app = express();
 app.use(express.json());
@@ -104,7 +104,7 @@ app.get('/api/sub/:username', (req, res) => {
     return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
 });
 
-// Автоматический вебхук от ЮKassa (сюда стучится ЮKassa при оплате по ссылке с ?label=ник)
+// Вебхук от ЮKassa
 app.post('/api/webhook/yookassa', (req, res) => {
     const event = req.body;
     
@@ -115,14 +115,13 @@ app.post('/api/webhook/yookassa', (req, res) => {
         
         const targetUser = label || username;
 
-        // По умолчанию добавляем 30 дней (или определяем по сумме/платежу)
         let days = 30;
         const amount = payment.amount && payment.amount.value ? parseFloat(payment.amount.value) : 150;
-        if (amount === 1) days = 1;       // Тест за 1 рубль
-        else if (amount === 150) days = 30; // 1 месяц
-        else if (amount === 375) days = 90; // 3 месяца
-        else if (amount === 660) days = 180;// 6 месяцев
-        else if (amount === 1140) days = 365;// 1 год
+        if (amount === 1) days = 1;
+        else if (amount === 150) days = 30;
+        else if (amount === 375) days = 90;
+        else if (amount === 660) days = 180;
+        else if (amount === 1140) days = 365;
 
         if (targetUser) {
             usersDatabase = loadDB();
