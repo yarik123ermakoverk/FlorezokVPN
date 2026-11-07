@@ -94,7 +94,7 @@ function grantTrial(username, chatId) {
         usersDatabase[userKey] = { password: 'auto_generated', expiresAt: 0, trialUsed: false, chatId: chatId };
     }
     const user = usersDatabase[userKey];
-    user.chatId = chatId; // Сохраняем chatId для уведомлений
+    user.chatId = chatId;
 
     if (user.trialUsed) {
         return sendTelegram(chatId, `❌ Вы уже использовали свою пробную подписку!`);
@@ -147,9 +147,10 @@ async function processPaymentCode(login, paymentId, chatId) {
         }
 
         const user = usersDatabase[userKey];
-        user.chatId = chatId; // Сохраняем chatId для уведомлений
+        if (chatId) user.chatId = chatId;
         const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
         user.expiresAt = currentExpire + days * 86400000;
+        user.notified = {};
         saveDB(usersDatabase);
 
         const subUrl = `${BACKEND_URL}/api/sub/${userKey}`;
@@ -170,12 +171,11 @@ function startSubscriptionNotifier() {
             if (!user.chatId || !user.expiresAt) continue;
 
             const timeLeft = user.expiresAt - now;
-            if (timeLeft <= 0) continue; // Уже истекла
+            if (timeLeft <= 0) continue;
 
             const hoursLeft = timeLeft / (1000 * 60 * 60);
             if (!user.notified) user.notified = {};
 
-            // Проверяем пороги (24ч, 12ч, 6ч, 3ч, 1ч) с запасом в 5 минут на проверку
             const thresholds = [
                 { hours: 24, key: 'h24', text: '⚠️ **Внимание!** До окончания вашей подписки осталось **24 часа** (1 сутки).' },
                 { hours: 12, key: 'h12', text: '⚠️ **Внимание!** До окончания вашей подписки осталось **12 часов**.' },
@@ -196,7 +196,7 @@ function startSubscriptionNotifier() {
         if (updated) {
             saveDB(usersDatabase);
         }
-    }, 60 * 1000); // Проверка каждую минуту
+    }, 60 * 1000);
 }
 
 // --- API САЙТА И АДМИНКИ ---
@@ -250,7 +250,7 @@ app.post('/api/admin/create-sub', (req, res) => {
     const user = usersDatabase[login];
     const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
     user.expiresAt = currentExpire + parseInt(days) * 86400000;
-    user.notified = {}; // Сбрасываем уведомления при продлении
+    user.notified = {};
     saveDB(usersDatabase);
     res.json({ success: true });
 });
@@ -263,9 +263,10 @@ app.post('/api/admin/update-user', (req, res) => {
     const login = username.trim().toLowerCase();
     if (!usersDatabase[login]) return res.status(404).json({ success: false });
     const user = usersDatabase[login];
+    
     const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
     user.expiresAt = currentExpire + parseInt(days) * 86400000;
-    user.notified = {}; // Сбрасываем уведомления
+    user.notified = {};
     saveDB(usersDatabase);
     res.json({ success: true });
 });
@@ -291,7 +292,6 @@ app.post('/api/admin/save-settings', (req, res) => {
 });
 
 app.post('/api/activate-code', async (req, res) => {
-    // Для сайта у нас может не быть chatId, поэтому передаем null
     const { username, paymentId } = req.body;
     if (!username || !paymentId) return res.status(400).json({ success: false, message: 'Заполните логин и код' });
     const result = await processPaymentCode(username, paymentId.trim(), null);
@@ -337,7 +337,6 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
         if (!text) return;
 
-        // Сохраняем chatId текущего пользователя
         usersDatabase = loadDB();
         if (!usersDatabase[username]) {
             usersDatabase[username] = { password: 'auto_generated', expiresAt: 0, trialUsed: false, chatId: chatId };
@@ -393,6 +392,15 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
                 `2. Нажмите кнопку **«✅ Я подписался»** ниже.`, 
                 channelKb
             );
+        } else if (text === '📖 Инструкция') {
+            const instructionText = 
+                `📖 **Инструкция по подключению FlorezokVPN (Happ):**\n\n` +
+                `1. Зайдите в раздел **«👤 Мой профиль»** в боте и скопируйте вашу ссылку подписки.\n` +
+                `2. Откройте приложение **Happ**.\n` +
+                `3. В правом верхнем углу нажмите на **плюсик (\`+\`)**.\n` +
+                `4. Выберите пункт **«Вставить из буфера обмена»** и нажмите **Подключиться**.`;
+            
+            await sendTelegram(chatId, instructionText);
         } else if (text === '👤 Мой профиль') {
             usersDatabase = loadDB();
             const user = usersDatabase[username];
@@ -430,7 +438,6 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
                 const result = await processPaymentCode(username, paymentId, chatId);
                 if (result.success) {
-                    // Сбрасываем флаги уведомлений для нового платежа
                     usersDatabase[username].notified = {};
                     saveDB(usersDatabase);
 
@@ -479,7 +486,7 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
 app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🚀 Server started on port ${PORT}`);
-    startSubscriptionNotifier(); // Запускаем фоновую отправку уведомлений
+    startSubscriptionNotifier();
     try {
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${BACKEND_URL}/bot${TELEGRAM_BOT_TOKEN}`);
     } catch(e) {}
