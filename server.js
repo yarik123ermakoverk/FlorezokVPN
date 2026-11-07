@@ -19,7 +19,7 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-// ЖЕСТКО ЗАШИТЫЕ СЕРВЕРА НАМЕРТВО (ВКЛЮЧАЯ НИДЕРЛАНДЫ) + ВОЗМОЖНОСТЬ ДОБАВЛЕНИЯ ЧЕРЕЗ АДМИНКУ
+// ПОСТОЯННАЯ БАЗА В ПАМЯТИ (БОТ, ПОЛЬЗОВАТЕЛИ И СЕРВЕРА)
 let memoryDB = {
     users: {
         "samaevka13": { password: "auto_generated", expiresAt: Date.now() + (30 * 86400000), trialUsed: true }
@@ -33,7 +33,7 @@ let memoryDB = {
         { 
             id: '2', 
             name: '🇳🇱 Нидерланды', 
-            link: 'vless://64c5f924-1c24-44a5-acff-2e3ebcd2f807@188.114.98.0:443?encryption=none&security=tls&type=xhttp&host=nl29.dr-ping.ir&path=%2F&mode=auto&sni=nl29.dr-ping.ir&alpn=h3%2Ch2%2Chttp%2F1.1&cs=TLS_AES_256_GCM_SHA384%3ATLS_CHACHA20_POLY1305_SHA256%3ATLS_AES_128_GCM_SHA256%3ATLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384%3ATLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384%3ATLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256%3ATLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256%3ATLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256%3ATLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256%3ATLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA%3ATLS_ECDHE_RSA_WITH_AES_256_CBC_SHA%3ATLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256%3ATLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256&fm=%7B%22tcp%22%3A&fp=android' 
+            link: 'vless://64c5f924-1c24-44a5-acff-2e3ebcd2f807@188.114.98.0:443?encryption=none&security=tls&type=xhttp&host=nl29.dr-ping.ir&path=%2F&mode=auto&sni=nl29.dr-ping.ir&alpn=h3%2Ch2%2Chttp%2F1.1&fp=android' 
         }
     ],
     usedPayments: [],
@@ -183,40 +183,9 @@ app.post('/api/admin/create-sub', (req, res) => {
     res.json({ success: true });
 });
 
-app.post('/api/admin/set-expire', (req, res) => {
-    const adminKey = req.headers['x-admin-auth'];
-    if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
-    const { username, expiresAt } = req.body;
-    const login = username.trim().toLowerCase();
-    if (!memoryDB.users[login]) return res.status(404).json({ success: false });
-
-    memoryDB.users[login].expiresAt = Number(expiresAt);
-    memoryDB.users[login].notified = {};
-    res.json({ success: true });
-});
-
-app.post('/api/admin/delete-user', (req, res) => {
-    const adminKey = req.headers['x-admin-auth'];
-    if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
-    const { username } = req.body;
-    const login = username.trim().toLowerCase();
-    delete memoryDB.users[login];
-    res.json({ success: true });
-});
-
-app.post('/api/admin/save-settings', (req, res) => {
-    const adminKey = req.headers['x-admin-auth'];
-    if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
-    const { stubKey } = req.body;
-    memoryDB.settings = { stubKey: stubKey || "" };
-    res.json({ success: true });
-});
-
-// УПРАВЛЕНИЕ СЕРВЕРАМИ В АДМИНКЕ (РАБОТАЕТ НАДЕЖНО)
 app.post('/api/admin/servers/add', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
-    
     const { name, link } = req.body;
     if (!name || !link) return res.status(400).json({ success: false, message: 'Заполните название и ключ' });
     
@@ -229,37 +198,15 @@ app.post('/api/admin/servers/add', (req, res) => {
     res.json({ success: true, servers: memoryDB.servers });
 });
 
-app.post('/api/admin/servers/edit', (req, res) => {
-    const adminKey = req.headers['x-admin-auth'];
-    if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
-    const { id, name, link } = req.body;
-    
-    const s = memoryDB.servers.find(x => x.id === id);
-    if (!s) return res.status(404).json({ success: false, message: 'Сервер не найден' });
-    
-    if (name) s.name = name.trim();
-    if (link) s.link = link.trim();
-    
-    res.json({ success: true, servers: memoryDB.servers });
-});
-
 app.post('/api/admin/servers/delete', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { id } = req.body;
-    
     memoryDB.servers = memoryDB.servers.filter(x => x.id !== id);
     res.json({ success: true, servers: memoryDB.servers });
 });
 
-app.post('/api/activate-code', async (req, res) => {
-    const { username, paymentId } = req.body;
-    if (!username || !paymentId) return res.status(400).json({ success: false, message: 'Заполните логин и код' });
-    const result = await processPaymentCode(username, paymentId.trim(), null);
-    res.json(result);
-});
-
-// ГЕНЕРАЦИЯ ПОДПИСКИ (ВКЛЮЧАЕТ НИДЕРЛАНДЫ И ВСЕ ОСТАЛЬНЫЕ СЕРВЕРА)
+// ГЕНЕРАЦИЯ ПОДПИСКИ
 app.get('/api/sub/:username', (req, res) => {
     const login = req.params.username.trim().toLowerCase();
     const user = memoryDB.users[login];
@@ -278,13 +225,6 @@ app.get('/api/sub/:username', (req, res) => {
         const encodedName = encodeURIComponent(serverName);
         keysToSend.push(`${cleanLink}#${encodedName}`);
     }
-    
-    if (memoryDB.settings.stubKey && memoryDB.settings.stubKey.trim() !== '') {
-        let stub = memoryDB.settings.stubKey.trim();
-        const hIdx = stub.indexOf('#');
-        if (hIdx !== -1) stub = stub.substring(0, hIdx);
-        keysToSend.push(`${stub}#%E2%9A%A0%EF%B8%8F%20%D0%97%D0%B0%D0%B3%D0%BB%D1%83%D1%88%D0%BA%D0%B0`);
-    }
 
     const expiresTimestamp = user ? Number(user.expiresAt || 0) : 0;
 
@@ -292,7 +232,7 @@ app.get('/api/sub/:username', (req, res) => {
         const expireSeconds = Math.floor(expiresTimestamp / 1000);
         const headers = [
             `#profile-update-interval: 1`,
-            `#profile-title: 🏳️ FlorezokVPN\nЕсли не работают сервера, нажми обновить🔄`,
+            `#profile-title: 🏳️ FlorezokVPN`,
             `#subscription-userinfo: upload=0; download=0; total=0; expire=${expireSeconds}`
         ];
         return res.send(headers.join('\n') + (keysToSend.length > 0 ? '\n\n' + keysToSend.join('\n\n') : ''));
@@ -300,7 +240,7 @@ app.get('/api/sub/:username', (req, res) => {
 
     const expiredHeaders = [
         `#profile-update-interval: 1`,
-        `#profile-title: 🏳️ FlorezokVPN\nЕсли не работают сервера, нажми обновить🔄`
+        `#profile-title: 🏳️ FlorezokVPN`
     ];
     return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
 });
