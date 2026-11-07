@@ -13,16 +13,20 @@ const YOOKASSA_SECRET_KEY = 'live_zdfOFIU0YPqEEk_Nk_3V3hw-Pi2sGcXOQ-yB_57TJyc';
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-auth']
 }));
 app.options('*', cors());
 
 const DB_FILE = path.join(__dirname, 'users.json');
 const PAYMENTS_FILE = path.join(__dirname, 'used_payments.json');
 const SETTINGS_FILE = path.join(__dirname, 'settings.json');
+
+// Временное хранилище для отслеживания состояния ввода пароля в боте: { chatId: 'username' }
+const waitingPasswordUsers = {};
 
 function loadDB() {
     try {
@@ -179,11 +183,7 @@ app.get('/api/user/status/:username', (req, res) => {
     const login = req.params.username.toLowerCase();
     const user = usersDatabase[login];
     if (!user) return res.status(404).json({ success: false, message: 'Пользователь не найден' });
-    res.json({
-        success: true,
-        expiresAt: user.expiresAt,
-        subUrl: `${BACKEND_URL}/api/sub/${login}`
-    });
+    res.json({ success: true, expiresAt: user.expiresAt, subUrl: `${BACKEND_URL}/api/sub/${login}` });
 });
 
 app.get('/api/admin/data', (req, res) => {
@@ -198,8 +198,6 @@ app.post('/api/admin/create-sub', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { username, days } = req.body;
-    if (!username || !days) return res.status(400).json({ success: false });
-
     usersDatabase = loadDB();
     const login = username.trim().toLowerCase();
     if (!usersDatabase[login]) {
@@ -219,7 +217,6 @@ app.post('/api/admin/update-user', (req, res) => {
     usersDatabase = loadDB();
     const login = username.trim().toLowerCase();
     if (!usersDatabase[login]) return res.status(404).json({ success: false });
-
     const user = usersDatabase[login];
     const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
     user.expiresAt = currentExpire + parseInt(days) * 86400000;
@@ -293,6 +290,22 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
         if (!text) return;
 
+        // Проверяем, ожидает ли бот ввода пароля от этого пользователя
+        if (waitingPasswordUsers[chatId]) {
+            const newPassword = text;
+            delete waitingPasswordUsers[chatId];
+
+            usersDatabase = loadDB();
+            if (!usersDatabase[username]) {
+                usersDatabase[username] = { password: newPassword, expiresAt: 0, trialUsed: false };
+            } else {
+                usersDatabase[username].password = newPassword;
+            }
+            saveDB(usersDatabase);
+
+            return await sendTelegram(chatId, `✅ **Пароль успешно сохранен!**\n\nТеперь вы можете входить на сайт \`florezokvpn.samp.date\` под вашим логином: \`${username}\` и новым паролем.`);
+        }
+
         if (text.startsWith('/start')) {
             const keyboard = {
                 keyboard: [
@@ -302,21 +315,6 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
                 resize_keyboard: true
             };
             await sendTelegram(chatId, `👋 Добро пожаловать в **FlorezokVPN**!\n\nВыберите тариф или активируйте пробную подписку!`, keyboard);
-        } else if (text === '💳 Купить') {
-            const tariffsText = 
-                `💎 **Выберите тариф:**\n` +
-                `Ваш логин для подписки: \`${username}\`\n\n` +
-                `⚠️ **Обязательно пришлите код платежа из чека прямо в этот чат после оплаты!**`;
-            
-            const inlineKeyboard = {
-                inline_keyboard: [
-                    [{ text: '1 Месяц (150 ₽)', url: 'https://yookassa.ru/my/i/au4a647hWPzD/l' }],
-                    [{ text: '3 Месяца (375 ₽)', url: 'https://yookassa.ru/my/i/au4bJLCp8dGe/l' }],
-                    [{ text: '6 Месяцев (660 ₽)', url: 'https://yookassa.ru/my/i/au4bSkpIvx0J/l' }],
-                    [{ text: '1 Год (1140 ₽)', url: 'https://yookassa.ru/my/i/au4bZXML-7FH/l' }]
-                ]
-            };
-            await sendTelegram(chatId, tariffsText, inlineKeyboard);
         } else if (text === '🎁 Пробная подписка') {
             const channelKb = {
                 inline_keyboard: [
@@ -335,19 +333,30 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
             const user = usersDatabase[username];
             const now = Date.now();
 
+            const profileKb = {
+                inline_keyboard: [
+                    [{ text: '🔑 Установить / Сменить пароль', callback_data: 'change_password' }]
+                ]
+            };
+
             if (user && now <= user.expiresAt) {
                 const daysLeft = Math.ceil((user.expiresAt - now) / 86400000);
                 const subUrl = `${BACKEND_URL}/api/sub/${username}`;
                 await sendTelegram(chatId, 
                     `👤 **Ваш аккаунт:** \`${username}\`\n` +
-                    `Статус: 🟢 **Активна** (Осталось дней: **${daysLeft}**)\n\n` +
-                    `🔗 **Ссылка подписки:**\n\`${subUrl}\``
+                    `Статус: 🟢 **Активна** (Осталось дней: **${daysLeft}**)\n` +
+                    `Пароль на сайте: \`${user.password || 'не задан'}\`\n\n` +
+                    `🔗 **Ссылка подписки:**\n\`${subUrl}\``,
+                    profileKb
                 );
             } else {
-                await sendTelegram(chatId, `👤 **Ваш аккаунт:** \`${username}\`\nСтатус: 🔴 **Неактивна**`);
+                await sendTelegram(chatId, 
+                    `👤 **Ваш аккаунт:** \`${username}\`\n` +
+                    `Статус: 🔴 **Неактивна**\n` +
+                    `Пароль на сайте: \`${user && user.password ? user.password : 'не задан'}\``,
+                    profileKb
+                );
             }
-        } else if (text === '📖 Инструкция') {
-            await sendTelegram(chatId, `📖 **Настройка:**\n1. Скачайте **happ** или **Hiddify**.\n2. Скопируйте ссылку из раздела «Мой профиль».\n3. Вставьте ссылку в приложение и подсоединяйтесь!`);
         } else {
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
             if (uuidRegex.test(text.trim())) {
@@ -387,6 +396,14 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
                 });
             } catch(e){}
             grantTrial(username, chatId);
+        } else if (query.data === 'change_password') {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ callback_query_id: query.id, text: 'Введите новый пароль' })
+            });
+            waitingPasswordUsers[chatId] = username;
+            await sendTelegram(chatId, `🔑 **Введите новый пароль для сайта** прямо в этот чат следующим сообщением:`);
         }
     }
 });
