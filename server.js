@@ -28,9 +28,26 @@ const SERVERS_FILE = path.join(__dirname, 'servers.json');
 
 const waitingPasswordUsers = {};
 
-const DEFAULT_SERVERS = [
-    { id: '1', name: '🇷🇺 Россия', link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' }
-];
+// ГАРАНТИЯ СОХРАНЕНИЯ: создаем файлы ТОЛЬКО ЕСЛИ ИХ ВООБЩЕ НЕТ.
+// Если файлы уже существуют на сервере (даже после обновления code.js), они НЕ ЗАТИРАЮТСЯ!
+function initFilesOnce() {
+    if (!fs.existsSync(DB_FILE)) {
+        fs.writeFileSync(DB_FILE, JSON.stringify({}, null, 2), 'utf8');
+    }
+    if (!fs.existsSync(PAYMENTS_FILE)) {
+        fs.writeFileSync(PAYMENTS_FILE, JSON.stringify([], null, 2), 'utf8');
+    }
+    if (!fs.existsSync(SETTINGS_FILE)) {
+        fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ stubKey: "" }, null, 2), 'utf8');
+    }
+    if (!fs.existsSync(SERVERS_FILE)) {
+        const initialServers = [
+            { id: '1', name: '🇷🇺 Россия', link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' }
+        ];
+        fs.writeFileSync(SERVERS_FILE, JSON.stringify(initialServers, null, 2), 'utf8');
+    }
+}
+initFilesOnce();
 
 function loadDB() {
     try {
@@ -82,12 +99,13 @@ function loadServers() {
             const data = fs.readFileSync(SERVERS_FILE, 'utf8');
             if (data && data.trim() !== '') {
                 const parsed = JSON.parse(data);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (Array.isArray(parsed)) return parsed;
             }
         }
     } catch (e) {}
-    saveServers(DEFAULT_SERVERS);
-    return DEFAULT_SERVERS;
+    return [
+        { id: '1', name: '🇷🇺 Россия', link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' }
+    ];
 }
 
 function saveServers(servers) {
@@ -541,7 +559,7 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
                         saveDB(db);
                     }
                     await sendTelegram(chatId, 
-                        `🎉 **ПОДПИСКА УСПЕШНО АКТИВИРОВААНА!**\n\n` +
+                        `🎉 **ПОДПИСКА УСПЕШНО АКТИВИРОВАНА!**\n\n` +
                         `✅ Логин: \`${username}\`\n` +
                         `⏳ Добавлено дней: **${result.days}**\n\n` +
                         `🔗 **Ваша ссылка подписки:**\n\`${result.subUrl}\``
@@ -590,3 +608,4 @@ app.listen(PORT, '0.0.0.0', async () => {
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${BACKEND_URL}/bot${TELEGRAM_BOT_TOKEN}`);
     } catch(e) {}
 });
+
