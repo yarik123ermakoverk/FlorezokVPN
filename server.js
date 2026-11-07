@@ -588,4 +588,4 @@ app.listen(PORT, '0.0.0.0', async () => {
     try {
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${BACKEND_URL}/bot${TELEGRAM_BOT_TOKEN}`);
     } catch(e) {}
-});
+
