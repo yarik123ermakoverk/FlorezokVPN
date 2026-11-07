@@ -32,21 +32,27 @@ function loadDB() {
     try {
         if (fs.existsSync(DB_FILE)) {
             const data = fs.readFileSync(DB_FILE, 'utf8');
-            if (data.trim() !== '') return JSON.parse(data);
+            if (data && data.trim() !== '') return JSON.parse(data);
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error("Ошибка чтения DB_FILE:", e);
+    }
     return {};
 }
 
 function saveDB(db) {
-    try { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8'); } catch (e) {}
+    try { 
+        fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8'); 
+    } catch (e) {
+        console.error("Ошибка записи DB_FILE:", e);
+    }
 }
 
 function loadUsedPayments() {
     try {
         if (fs.existsSync(PAYMENTS_FILE)) {
             const data = fs.readFileSync(PAYMENTS_FILE, 'utf8');
-            if (data.trim() !== '') return JSON.parse(data);
+            if (data && data.trim() !== '') return JSON.parse(data);
         }
     } catch (e) {}
     return [];
@@ -60,7 +66,7 @@ function loadSettings() {
     try {
         if (fs.existsSync(SETTINGS_FILE)) {
             const data = fs.readFileSync(SETTINGS_FILE, 'utf8');
-            if (data.trim() !== '') return JSON.parse(data);
+            if (data && data.trim() !== '') return JSON.parse(data);
         }
     } catch (e) {}
     return { stubKey: "" };
@@ -74,11 +80,10 @@ function loadServers() {
     try {
         if (fs.existsSync(SERVERS_FILE)) {
             const data = fs.readFileSync(SERVERS_FILE, 'utf8');
-            if (data.trim() !== '') return JSON.parse(data);
+            if (data && data.trim() !== '') return JSON.parse(data);
         }
     } catch (e) {}
     
-    // Оставляем только один начальный сервер «Россия»
     const initial = [
         { id: '1', name: '🇷🇺 Россия', link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' }
     ];
@@ -116,18 +121,20 @@ async function sendTelegram(chatId, text, replyMarkup = null) {
 function grantTrial(username, chatId) {
     usersDatabase = loadDB();
     const userKey = username.toLowerCase();
+    
     if (!usersDatabase[userKey]) {
         usersDatabase[userKey] = { password: 'auto_generated', expiresAt: 0, trialUsed: false, chatId: chatId };
     }
+    
     const user = usersDatabase[userKey];
     user.chatId = chatId;
 
-    if (user.trialUsed) {
+    if (user.trialUsed && user.expiresAt > Date.now()) {
         return sendTelegram(chatId, `❌ Вы уже использовали свою пробную подписку!`);
     }
 
     user.trialUsed = true;
-    user.expiresAt = (user.expiresAt > Date.now() ? user.expiresAt : Date.now()) + 5 * 86400000;
+    user.expiresAt = Date.now() + (5 * 86400000);
     saveDB(usersDatabase);
 
     const subUrl = `${BACKEND_URL}/api/sub/${userKey}`;
@@ -138,6 +145,7 @@ function grantTrial(username, chatId) {
 }
 
 async function processPaymentCode(login, paymentId, chatId) {
+    usedPayments = loadUsedPayments();
     if (usedPayments.includes(paymentId)) {
         return { success: false, message: '❌ Этот код платежа уже был активирован!' };
     }
@@ -175,7 +183,7 @@ async function processPaymentCode(login, paymentId, chatId) {
         const user = usersDatabase[userKey];
         if (chatId) user.chatId = chatId;
         const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
-        user.expiresAt = currentExpire + days * 86400000;
+        user.expiresAt = currentExpire + (days * 86400000);
         user.notified = {};
         saveDB(usersDatabase);
 
@@ -273,7 +281,7 @@ app.post('/api/admin/create-sub', (req, res) => {
     }
     const user = usersDatabase[login];
     const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
-    user.expiresAt = currentExpire + parseInt(days) * 86400000;
+    user.expiresAt = currentExpire + (parseInt(days) * 86400000);
     user.notified = {};
     saveDB(usersDatabase);
     res.json({ success: true });
@@ -397,12 +405,17 @@ app.get('/api/sub/:username', (req, res) => {
         const expireSeconds = Math.floor(user.expiresAt / 1000);
         const headers = [
             `#profile-update-interval: 1`,
-            `#profile-title: 🏳️ Florezok (${login})`,
+            `#profile-title: 🏳️ FlorezokVPN\nЕсли не работают сервера, нажми обновить🔄`,
             `#subscription-userinfo: upload=0; download=0; total=0; expire=${expireSeconds}`
         ];
         return res.send(headers.join('\n') + (keysToSend.length > 0 ? '\n\n' + keysToSend.join('\n\n') : ''));
     }
-    return res.send([`#profile-update-interval: 1`, `#profile-title: ❌ Подписка истекла`].join('\n') + '\n\n' + globalExpiredKey);
+
+    const expiredHeaders = [
+        `#profile-update-interval: 1`,
+        `#profile-title: 🏳️ FlorezokVPN\nЕсли не работают сервера, нажми обновить🔄`
+    ];
+    return res.send(expiredHeaders.join('\n') + '\n\n' + globalExpiredKey);
 });
 
 // ТЕЛЕГРАМ БОТ
