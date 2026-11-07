@@ -19,7 +19,7 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-// ПОСТОЯННАЯ БАЗА В ПАМЯТИ (БОТ, ПОЛЬЗОВАТЕЛИ И СЕРВЕРА)
+// ПОСТОЯННАЯ БАЗА В ПАМЯТИ
 let memoryDB = {
     users: {
         "samaevka13": { password: "auto_generated", expiresAt: Date.now() + (30 * 86400000), trialUsed: true }
@@ -183,6 +183,7 @@ app.post('/api/admin/create-sub', (req, res) => {
     res.json({ success: true });
 });
 
+// ДОБАВЛЕНИЕ СЕРВЕРОВ В АДМИНКЕ
 app.post('/api/admin/servers/add', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
@@ -206,7 +207,7 @@ app.post('/api/admin/servers/delete', (req, res) => {
     res.json({ success: true, servers: memoryDB.servers });
 });
 
-// ГЕНЕРАЦИЯ ПОДПИСКИ
+// ГЕНЕРАЦИЯ ПОДПИСКИ (ОТДАЕТ ВСЕ СЕРВЕРА ИЗ ПАМЯТИ)
 app.get('/api/sub/:username', (req, res) => {
     const login = req.params.username.trim().toLowerCase();
     const user = memoryDB.users[login];
@@ -214,6 +215,7 @@ app.get('/api/sub/:username', (req, res) => {
 
     let keysToSend = [];
     
+    // Перебираем абсолютно все сервера из массива memoryDB.servers
     for (const s of memoryDB.servers) {
         if (!s || !s.link) continue;
         let cleanLink = String(s.link).trim();
