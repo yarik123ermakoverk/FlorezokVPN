@@ -1,7 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
 
 const TELEGRAM_BOT_TOKEN = '9147658037:AAEaYJ56epN4hTrJXEqWm6PTC7qwO3WI7SE';
 const CHANNEL_URL = 'https://t.me/Florezok_VPN';
@@ -21,97 +19,24 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-const DB_FILE = path.join(__dirname, 'users.json');
-const PAYMENTS_FILE = path.join(__dirname, 'used_payments.json');
-const SETTINGS_FILE = path.join(__dirname, 'settings.json');
-const SERVERS_FILE = path.join(__dirname, 'servers.json');
+// --- БАЗА ДАННЫХ В ПАМЯТИ (НЕ ЗАВИСИТ ОТ ФАЙЛОВ) ---
+let memoryDB = {
+    users: {
+        // Здесь будут храниться пользователи (например, админ или тестовый юзер)
+    },
+    servers: [
+        { 
+            id: '1', 
+            name: '🇷🇺 Россия', 
+            link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' 
+        }
+    ],
+    usedPayments: [],
+    settings: { stubKey: "" }
+};
 
 const waitingPasswordUsers = {};
-
-// АВТОМАТИЧЕСКОЕ СОЗДАНИЕ ФАЙЛОВ ПРИ ИХ ОТСУТСТВИИ
-function initMissingFiles() {
-    if (!fs.existsSync(DB_FILE)) {
-        fs.writeFileSync(DB_FILE, JSON.stringify({}, null, 2), 'utf8');
-    }
-    if (!fs.existsSync(PAYMENTS_FILE)) {
-        fs.writeFileSync(PAYMENTS_FILE, JSON.stringify([], null, 2), 'utf8');
-    }
-    if (!fs.existsSync(SETTINGS_FILE)) {
-        fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ stubKey: "" }, null, 2), 'utf8');
-    }
-    if (!fs.existsSync(SERVERS_FILE)) {
-        const defaultServers = [
-            { id: '1', name: '🇷🇺 Россия', link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' }
-        ];
-        fs.writeFileSync(SERVERS_FILE, JSON.stringify(defaultServers, null, 2), 'utf8');
-    }
-}
-initMissingFiles();
-
-function loadDB() {
-    try {
-        if (fs.existsSync(DB_FILE)) {
-            const data = fs.readFileSync(DB_FILE, 'utf8');
-            if (data && data.trim() !== '') return JSON.parse(data);
-        }
-    } catch (e) {}
-    return {};
-}
-
-function saveDB(db) {
-    try { 
-        fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8'); 
-    } catch (e) {}
-}
-
-function loadUsedPayments() {
-    try {
-        if (fs.existsSync(PAYMENTS_FILE)) {
-            const data = fs.readFileSync(PAYMENTS_FILE, 'utf8');
-            if (data && data.trim() !== '') return JSON.parse(data);
-        }
-    } catch (e) {}
-    return [];
-}
-
-function saveUsedPayments(list) {
-    try { fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(list, null, 2), 'utf8'); } catch (e) {}
-}
-
-function loadSettings() {
-    try {
-        if (fs.existsSync(SETTINGS_FILE)) {
-            const data = fs.readFileSync(SETTINGS_FILE, 'utf8');
-            if (data && data.trim() !== '') return JSON.parse(data);
-        }
-    } catch (e) {}
-    return { stubKey: "" };
-}
-
-function saveSettings(settings) {
-    try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8'); } catch (e) {}
-}
-
-function loadServers() {
-    try {
-        if (fs.existsSync(SERVERS_FILE)) {
-            const data = fs.readFileSync(SERVERS_FILE, 'utf8');
-            if (data && data.trim() !== '') {
-                const parsed = JSON.parse(data);
-                if (Array.isArray(parsed)) return parsed;
-            }
-        }
-    } catch (e) {}
-    return [
-        { id: '1', name: '🇷🇺 Россия', link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' }
-    ];
-}
-
-function saveServers(servers) {
-    try { fs.writeFileSync(SERVERS_FILE, JSON.stringify(servers, null, 2), 'utf8'); } catch (e) {}
-}
-
-const globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%91%D0%9B%D0%A1%D0%AF";
+const globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF";
 
 async function sendTelegram(chatId, text, replyMarkup = null) {
     try {
@@ -130,14 +55,13 @@ async function sendTelegram(chatId, text, replyMarkup = null) {
 }
 
 function grantTrial(username, chatId) {
-    const db = loadDB();
     const userKey = username.toLowerCase();
     
-    if (!db[userKey]) {
-        db[userKey] = { password: 'auto_generated', expiresAt: 0, trialUsed: false, chatId: chatId };
+    if (!memoryDB.users[userKey]) {
+        memoryDB.users[userKey] = { password: 'auto_generated', expiresAt: 0, trialUsed: false, chatId: chatId };
     }
     
-    const user = db[userKey];
+    const user = memoryDB.users[userKey];
     user.chatId = chatId;
 
     const expiresTimestamp = Number(user.expiresAt || 0);
@@ -147,7 +71,6 @@ function grantTrial(username, chatId) {
 
     user.trialUsed = true;
     user.expiresAt = Date.now() + (5 * 86400000);
-    saveDB(db);
 
     const subUrl = `${BACKEND_URL}/api/sub/${userKey}`;
     sendTelegram(chatId, 
@@ -157,8 +80,7 @@ function grantTrial(username, chatId) {
 }
 
 async function processPaymentCode(login, paymentId, chatId) {
-    const used = loadUsedPayments();
-    if (used.includes(paymentId)) {
+    if (memoryDB.usedPayments.includes(paymentId)) {
         return { success: false, message: '❌ Этот код платежа уже был активирован!' };
     }
 
@@ -183,22 +105,19 @@ async function processPaymentCode(login, paymentId, chatId) {
         else if (amount === 660) days = 180;
         else if (amount === 1140) days = 365;
 
-        used.push(paymentId);
-        saveUsedPayments(used);
+        memoryDB.usedPayments.push(paymentId);
 
-        const db = loadDB();
         const userKey = login.toLowerCase();
-        if (!db[userKey]) {
-            db[userKey] = { password: 'auto_generated', expiresAt: 0 };
+        if (!memoryDB.users[userKey]) {
+            memoryDB.users[userKey] = { password: 'auto_generated', expiresAt: 0 };
         }
 
-        const user = db[userKey];
+        const user = memoryDB.users[userKey];
         if (chatId) user.chatId = chatId;
         const expiresTimestamp = Number(user.expiresAt || 0);
         const currentExpire = expiresTimestamp > Date.now() ? expiresTimestamp : Date.now();
         user.expiresAt = currentExpire + (days * 86400000);
         user.notified = {};
-        saveDB(db);
 
         const subUrl = `${BACKEND_URL}/api/sub/${userKey}`;
         return { success: true, days, subUrl };
@@ -207,69 +126,28 @@ async function processPaymentCode(login, paymentId, chatId) {
     }
 }
 
-function startSubscriptionNotifier() {
-    setInterval(async () => {
-        const db = loadDB();
-        const now = Date.now();
-        let updated = false;
-
-        for (const [login, user] of Object.entries(db)) {
-            const expiresTimestamp = Number(user.expiresAt || 0);
-            if (!user.chatId || !expiresTimestamp) continue;
-
-            const timeLeft = expiresTimestamp - now;
-            if (timeLeft <= 0) continue;
-
-            const hoursLeft = timeLeft / (1000 * 60 * 60);
-            if (!user.notified) user.notified = {};
-
-            const thresholds = [
-                { hours: 24, key: 'h24', text: '⚠️ **Внимание!** До окончания вашей подписки осталось **24 часа** (1 сутки).' },
-                { hours: 12, key: 'h12', text: '⚠️ **Внимание!** До окончания вашей подписки осталось **12 часов**.' },
-                { hours: 6, key: 'h6', text: '⚠️ **Внимание!** До окончания вашей подписки осталось **6 часов**.' },
-                { hours: 3, key: 'h3', text: '🚨 **Срочно!** До окончания вашей подписки осталось **3 часа**.' },
-                { hours: 1, key: 'h1', text: '🚨 **Внимание!** До окончания вашей подписки остался **1 час**! Продлите тариф, чтобы не потерять доступ.' }
-            ];
-
-            for (const t of thresholds) {
-                if (hoursLeft <= t.hours && hoursLeft > (t.hours - 0.1) && !user.notified[t.key]) {
-                    user.notified[t.key] = true;
-                    updated = true;
-                    await sendTelegram(user.chatId, t.text);
-                }
-            }
-        }
-
-        if (updated) saveDB(db);
-    }, 60 * 1000);
-}
-
 app.get('/', (req, res) => res.send('OK'));
 
 app.post('/api/auth/register', (req, res) => {
-    const db = loadDB();
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ success: false, message: 'Заполните поля' });
     const login = username.trim().toLowerCase();
-    if (db[login]) return res.status(400).json({ success: false, message: 'Логин занят' });
-    db[login] = { password, expiresAt: 0, trialUsed: false };
-    saveDB(db);
+    if (memoryDB.users[login]) return res.status(400).json({ success: false, message: 'Логин занят' });
+    memoryDB.users[login] = { password, expiresAt: 0, trialUsed: false };
     res.json({ success: true, username: login });
 });
 
 app.post('/api/auth/login', (req, res) => {
-    const db = loadDB();
     const { username, password } = req.body;
     const login = username ? username.trim().toLowerCase() : '';
-    const user = db[login];
+    const user = memoryDB.users[login];
     if (!user || user.password !== password) return res.status(401).json({ success: false, message: 'Неверные данные' });
     res.json({ success: true, username: login, expiresAt: Number(user.expiresAt || 0) });
 });
 
 app.get('/api/user/status/:username', (req, res) => {
-    const db = loadDB();
     const login = req.params.username.toLowerCase();
-    const user = db[login];
+    const user = memoryDB.users[login];
     if (!user) return res.status(404).json({ success: false, message: 'Пользователь не найден' });
     res.json({ success: true, expiresAt: Number(user.expiresAt || 0), subUrl: `${BACKEND_URL}/api/sub/${login}` });
 });
@@ -280,9 +158,9 @@ app.get('/api/admin/data', (req, res) => {
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     res.json({ 
         success: true, 
-        users: loadDB(), 
-        settings: loadSettings(), 
-        servers: loadServers() 
+        users: memoryDB.users, 
+        settings: memoryDB.settings, 
+        servers: memoryDB.servers 
     });
 });
 
@@ -290,17 +168,15 @@ app.post('/api/admin/create-sub', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { username, days } = req.body;
-    const db = loadDB();
     const login = username.trim().toLowerCase();
-    if (!db[login]) {
-        db[login] = { password: 'auto_generated', expiresAt: 0, trialUsed: true };
+    if (!memoryDB.users[login]) {
+        memoryDB.users[login] = { password: 'auto_generated', expiresAt: 0, trialUsed: true };
     }
-    const user = db[login];
+    const user = memoryDB.users[login];
     const expiresTimestamp = Number(user.expiresAt || 0);
     const currentExpire = expiresTimestamp > Date.now() ? expiresTimestamp : Date.now();
     user.expiresAt = currentExpire + (parseInt(days) * 86400000);
     user.notified = {};
-    saveDB(db);
     res.json({ success: true });
 });
 
@@ -308,13 +184,11 @@ app.post('/api/admin/set-expire', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { username, expiresAt } = req.body;
-    const db = loadDB();
     const login = username.trim().toLowerCase();
-    if (!db[login]) return res.status(404).json({ success: false });
+    if (!memoryDB.users[login]) return res.status(404).json({ success: false });
 
-    db[login].expiresAt = Number(expiresAt);
-    db[login].notified = {};
-    saveDB(db);
+    memoryDB.users[login].expiresAt = Number(expiresAt);
+    memoryDB.users[login].notified = {};
     res.json({ success: true });
 });
 
@@ -322,10 +196,8 @@ app.post('/api/admin/delete-user', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { username } = req.body;
-    const db = loadDB();
     const login = username.trim().toLowerCase();
-    delete db[login];
-    saveDB(db);
+    delete memoryDB.users[login];
     res.json({ success: true });
 });
 
@@ -333,7 +205,7 @@ app.post('/api/admin/save-settings', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { stubKey } = req.body;
-    saveSettings({ stubKey: stubKey || "" });
+    memoryDB.settings = { stubKey: stubKey || "" };
     res.json({ success: true });
 });
 
@@ -344,42 +216,36 @@ app.post('/api/admin/servers/add', (req, res) => {
     const { name, link } = req.body;
     if (!name || !link) return res.status(400).json({ success: false, message: 'Заполните название и ключ' });
     
-    const servers = loadServers();
     const newServer = {
         id: Date.now().toString(),
         name: name.trim(),
         link: link.trim()
     };
-    servers.push(newServer);
-    saveServers(servers);
-    res.json({ success: true, servers: servers });
+    memoryDB.servers.push(newServer);
+    res.json({ success: true, servers: memoryDB.servers });
 });
 
 app.post('/api/admin/servers/edit', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { id, name, link } = req.body;
-    const servers = loadServers();
     
-    const s = servers.find(x => x.id === id);
+    const s = memoryDB.servers.find(x => x.id === id);
     if (!s) return res.status(404).json({ success: false, message: 'Сервер не найден' });
     
     if (name) s.name = name.trim();
     if (link) s.link = link.trim();
     
-    saveServers(servers);
-    res.json({ success: true, servers: servers });
+    res.json({ success: true, servers: memoryDB.servers });
 });
 
 app.post('/api/admin/servers/delete', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { id } = req.body;
-    let servers = loadServers();
     
-    servers = servers.filter(x => x.id !== id);
-    saveServers(servers);
-    res.json({ success: true, servers: servers });
+    memoryDB.servers = memoryDB.servers.filter(x => x.id !== id);
+    res.json({ success: true, servers: memoryDB.servers });
 });
 
 app.post('/api/activate-code', async (req, res) => {
@@ -391,16 +257,13 @@ app.post('/api/activate-code', async (req, res) => {
 
 // ГЕНЕРАЦИЯ ПОДПИСКИ
 app.get('/api/sub/:username', (req, res) => {
-    const db = loadDB();
-    const settings = loadSettings();
-    const servers = loadServers();
     const login = req.params.username.trim().toLowerCase();
-    const user = db[login];
+    const user = memoryDB.users[login];
     res.set('Content-Type', 'text/plain; charset=utf-8');
 
     let keysToSend = [];
     
-    for (const s of servers) {
+    for (const s of memoryDB.servers) {
         if (!s || !s.link) continue;
         let cleanLink = String(s.link).trim();
         const hashIdx = cleanLink.indexOf('#');
@@ -412,8 +275,8 @@ app.get('/api/sub/:username', (req, res) => {
         keysToSend.push(`${cleanLink}#${encodedName}`);
     }
     
-    if (settings.stubKey && settings.stubKey.trim() !== '') {
-        let stub = settings.stubKey.trim();
+    if (memoryDB.settings.stubKey && memoryDB.settings.stubKey.trim() !== '') {
+        let stub = memoryDB.settings.stubKey.trim();
         const hIdx = stub.indexOf('#');
         if (hIdx !== -1) stub = stub.substring(0, hIdx);
         keysToSend.push(`${stub}#%E2%9A%A0%EF%B8%8F%20%D0%97%D0%B0%D0%B3%D0%BB%D1%83%D1%88%D0%BA%D0%B0`);
@@ -453,19 +316,16 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
         if (!text) return;
 
-        const db = loadDB();
-        if (!db[username]) {
-            db[username] = { password: 'auto_generated', expiresAt: 0, trialUsed: false, chatId: chatId };
+        if (!memoryDB.users[username]) {
+            memoryDB.users[username] = { password: 'auto_generated', expiresAt: 0, trialUsed: false, chatId: chatId };
         } else {
-            db[username].chatId = chatId;
+            memoryDB.users[username].chatId = chatId;
         }
-        saveDB(db);
 
         if (waitingPasswordUsers[chatId]) {
             const newPassword = text;
             delete waitingPasswordUsers[chatId];
-            db[username].password = newPassword;
-            saveDB(db);
+            memoryDB.users[username].password = newPassword;
             return await sendTelegram(chatId, `✅ **Пароль успешно сохранен!**\n\nТеперь вы можете входить на сайт под логином: \`${username}\` и новым паролем.`);
         }
 
@@ -516,8 +376,7 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
             
             await sendTelegram(chatId, instructionText);
         } else if (text === '👤 Мой профиль') {
-            const db = loadDB();
-            const user = db[username];
+            const user = memoryDB.users[username];
             const now = Date.now();
             const expiresTimestamp = user ? Number(user.expiresAt || 0) : 0;
             const profileKb = {
@@ -552,10 +411,8 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
                 const result = await processPaymentCode(username, paymentId, chatId);
                 if (result.success) {
-                    const db = loadDB();
-                    if (db[username]) {
-                        db[username].notified = {};
-                        saveDB(db);
+                    if (memoryDB.users[username]) {
+                        memoryDB.users[username].notified = {};
                     }
                     await sendTelegram(chatId, 
                         `🎉 **ПОДПИСКА УСПЕШНО АКТИВИРОВАНА!**\n\n` +
@@ -602,9 +459,7 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
 app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🚀 Server started on port ${PORT}`);
-    startSubscriptionNotifier();
     try {
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${BACKEND_URL}/bot${TELEGRAM_BOT_TOKEN}`);
     } catch(e) {}
 });
-
