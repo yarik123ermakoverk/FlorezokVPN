@@ -25,7 +25,6 @@ const DB_FILE = path.join(__dirname, 'users.json');
 const PAYMENTS_FILE = path.join(__dirname, 'used_payments.json');
 const SETTINGS_FILE = path.join(__dirname, 'settings.json');
 
-// Временное хранилище для отслеживания состояния ввода пароля в боте: { chatId: 'username' }
 const waitingPasswordUsers = {};
 
 function loadDB() {
@@ -77,21 +76,25 @@ async function sendTelegram(chatId, text, replyMarkup = null) {
         const body = { chat_id: chatId, text: text, parse_mode: 'Markdown' };
         if (replyMarkup) body.reply_markup = replyMarkup;
 
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-    } catch (e) {}
+        return await res.json();
+    } catch (e) {
+        return null;
+    }
 }
 
 function grantTrial(username, chatId) {
     usersDatabase = loadDB();
     const userKey = username.toLowerCase();
     if (!usersDatabase[userKey]) {
-        usersDatabase[userKey] = { password: 'auto_generated', expiresAt: 0, trialUsed: false };
+        usersDatabase[userKey] = { password: 'auto_generated', expiresAt: 0, trialUsed: false, chatId: chatId };
     }
     const user = usersDatabase[userKey];
+    user.chatId = chatId; // Сохраняем chatId для уведомлений
 
     if (user.trialUsed) {
         return sendTelegram(chatId, `❌ Вы уже использовали свою пробную подписку!`);
@@ -108,7 +111,7 @@ function grantTrial(username, chatId) {
     );
 }
 
-async function processPaymentCode(login, paymentId) {
+async function processPaymentCode(login, paymentId, chatId) {
     if (usedPayments.includes(paymentId)) {
         return { success: false, message: '❌ Этот код платежа уже был активирован!' };
     }
@@ -144,6 +147,7 @@ async function processPaymentCode(login, paymentId) {
         }
 
         const user = usersDatabase[userKey];
+        user.chatId = chatId; // Сохраняем chatId для уведомлений
         const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
         user.expiresAt = currentExpire + days * 86400000;
         saveDB(usersDatabase);
@@ -153,6 +157,46 @@ async function processPaymentCode(login, paymentId) {
     } catch (e) {
         return { success: false, message: '❌ Ошибка проверки кода на сервере.' };
     }
+}
+
+// --- ФОНОВАЯ ПРОВЕРКА ДЛЯ УВЕДОМЛЕНИЙ ---
+function startSubscriptionNotifier() {
+    setInterval(async () => {
+        usersDatabase = loadDB();
+        const now = Date.now();
+        let updated = false;
+
+        for (const [login, user] of Object.entries(usersDatabase)) {
+            if (!user.chatId || !user.expiresAt) continue;
+
+            const timeLeft = user.expiresAt - now;
+            if (timeLeft <= 0) continue; // Уже истекла
+
+            const hoursLeft = timeLeft / (1000 * 60 * 60);
+            if (!user.notified) user.notified = {};
+
+            // Проверяем пороги (24ч, 12ч, 6ч, 3ч, 1ч) с запасом в 5 минут на проверку
+            const thresholds = [
+                { hours: 24, key: 'h24', text: '⚠️ **Внимание!** До окончания вашей подписки осталось **24 часа** (1 сутки).' },
+                { hours: 12, key: 'h12', text: '⚠️ **Внимание!** До окончания вашей подписки осталось **12 часов**.' },
+                { hours: 6, key: 'h6', text: '⚠️ **Внимание!** До окончания вашей подписки осталось **6 часов**.' },
+                { hours: 3, key: 'h3', text: '🚨 **Срочно!** До окончания вашей подписки осталось **3 часа**.' },
+                { hours: 1, key: 'h1', text: '🚨 **Внимание!** До окончания вашей подписки остался **1 час**! Продлите тариф, чтобы не потерять доступ.' }
+            ];
+
+            for (const t of thresholds) {
+                if (hoursLeft <= t.hours && hoursLeft > (t.hours - 0.1) && !user.notified[t.key]) {
+                    user.notified[t.key] = true;
+                    updated = true;
+                    await sendTelegram(user.chatId, t.text);
+                }
+            }
+        }
+
+        if (updated) {
+            saveDB(usersDatabase);
+        }
+    }, 60 * 1000); // Проверка каждую минуту
 }
 
 // --- API САЙТА И АДМИНКИ ---
@@ -206,6 +250,7 @@ app.post('/api/admin/create-sub', (req, res) => {
     const user = usersDatabase[login];
     const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
     user.expiresAt = currentExpire + parseInt(days) * 86400000;
+    user.notified = {}; // Сбрасываем уведомления при продлении
     saveDB(usersDatabase);
     res.json({ success: true });
 });
@@ -220,6 +265,7 @@ app.post('/api/admin/update-user', (req, res) => {
     const user = usersDatabase[login];
     const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
     user.expiresAt = currentExpire + parseInt(days) * 86400000;
+    user.notified = {}; // Сбрасываем уведомления
     saveDB(usersDatabase);
     res.json({ success: true });
 });
@@ -245,9 +291,10 @@ app.post('/api/admin/save-settings', (req, res) => {
 });
 
 app.post('/api/activate-code', async (req, res) => {
+    // Для сайта у нас может не быть chatId, поэтому передаем null
     const { username, paymentId } = req.body;
     if (!username || !paymentId) return res.status(400).json({ success: false, message: 'Заполните логин и код' });
-    const result = await processPaymentCode(username, paymentId.trim());
+    const result = await processPaymentCode(username, paymentId.trim(), null);
     res.json(result);
 });
 
@@ -290,20 +337,23 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
         if (!text) return;
 
-        // Проверяем, ожидает ли бот ввода пароля от этого пользователя
+        // Сохраняем chatId текущего пользователя
+        usersDatabase = loadDB();
+        if (!usersDatabase[username]) {
+            usersDatabase[username] = { password: 'auto_generated', expiresAt: 0, trialUsed: false, chatId: chatId };
+        } else {
+            usersDatabase[username].chatId = chatId;
+        }
+        saveDB(usersDatabase);
+
         if (waitingPasswordUsers[chatId]) {
             const newPassword = text;
             delete waitingPasswordUsers[chatId];
 
-            usersDatabase = loadDB();
-            if (!usersDatabase[username]) {
-                usersDatabase[username] = { password: newPassword, expiresAt: 0, trialUsed: false };
-            } else {
-                usersDatabase[username].password = newPassword;
-            }
+            usersDatabase[username].password = newPassword;
             saveDB(usersDatabase);
 
-            return await sendTelegram(chatId, `✅ **Пароль успешно сохранен!**\n\nТеперь вы можете входить на сайт \`florezokvpn.samp.date\` под вашим логином: \`${username}\` и новым паролем.`);
+            return await sendTelegram(chatId, `✅ **Пароль успешно сохранен!**\n\nТеперь вы можете входить на сайт под логином: \`${username}\` и новым паролем.`);
         }
 
         if (text.startsWith('/start')) {
@@ -315,6 +365,21 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
                 resize_keyboard: true
             };
             await sendTelegram(chatId, `👋 Добро пожаловать в **FlorezokVPN**!\n\nВыберите тариф или активируйте пробную подписку!`, keyboard);
+        } else if (text === '💳 Купить') {
+            const tariffsText = 
+                `💎 **Выберите тариф:**\n` +
+                `Ваш логин для подписки: \`${username}\`\n\n` +
+                `⚠️ **Обязательно пришлите код платежа из чека прямо в этот чат после оплаты!**`;
+            
+            const inlineKeyboard = {
+                inline_keyboard: [
+                    [{ text: '1 Месяц (150 ₽)', url: 'https://yookassa.ru/my/i/au4a647hWPzD/l' }],
+                    [{ text: '3 Месяца (375 ₽)', url: 'https://yookassa.ru/my/i/au4bJLCp8dGe/l' }],
+                    [{ text: '6 Месяцев (660 ₽)', url: 'https://yookassa.ru/my/i/au4bSkpIvx0J/l' }],
+                    [{ text: '1 Год (1140 ₽)', url: 'https://yookassa.ru/my/i/au4bZXML-7FH/l' }]
+                ]
+            };
+            await sendTelegram(chatId, tariffsText, inlineKeyboard);
         } else if (text === '🎁 Пробная подписка') {
             const channelKb = {
                 inline_keyboard: [
@@ -363,8 +428,12 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
                 const paymentId = text.trim();
                 await sendTelegram(chatId, `⏳ Проверяем код платежа \`${paymentId}\`...`);
 
-                const result = await processPaymentCode(username, paymentId);
+                const result = await processPaymentCode(username, paymentId, chatId);
                 if (result.success) {
+                    // Сбрасываем флаги уведомлений для нового платежа
+                    usersDatabase[username].notified = {};
+                    saveDB(usersDatabase);
+
                     await sendTelegram(chatId, 
                         `🎉 **ПОДПИСКА УСПЕШНО АКТИВИРОВАНА!**\n\n` +
                         `✅ Логин: \`${username}\`\n` +
@@ -410,6 +479,7 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
 app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🚀 Server started on port ${PORT}`);
+    startSubscriptionNotifier(); // Запускаем фоновую отправку уведомлений
     try {
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${BACKEND_URL}/bot${TELEGRAM_BOT_TOKEN}`);
     } catch(e) {}
