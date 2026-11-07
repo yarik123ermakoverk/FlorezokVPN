@@ -32,7 +32,6 @@ const DEFAULT_SERVERS = [
     { id: '1', name: '🇷🇺 Россия', link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' }
 ];
 
-// Безопасные функции работы с файлами (диск читается всегда заново)
 function loadDB() {
     try {
         if (fs.existsSync(DB_FILE)) {
@@ -124,7 +123,8 @@ function grantTrial(username, chatId) {
     const user = db[userKey];
     user.chatId = chatId;
 
-    if (user.trialUsed && user.expiresAt > Date.now()) {
+    const expiresTimestamp = Number(user.expiresAt || 0);
+    if (user.trialUsed && expiresTimestamp > Date.now()) {
         return sendTelegram(chatId, `❌ Вы уже использовали свою пробную подписку!`);
     }
 
@@ -177,7 +177,8 @@ async function processPaymentCode(login, paymentId, chatId) {
 
         const user = db[userKey];
         if (chatId) user.chatId = chatId;
-        const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
+        const expiresTimestamp = Number(user.expiresAt || 0);
+        const currentExpire = expiresTimestamp > Date.now() ? expiresTimestamp : Date.now();
         user.expiresAt = currentExpire + (days * 86400000);
         user.notified = {};
         saveDB(db);
@@ -196,9 +197,10 @@ function startSubscriptionNotifier() {
         let updated = false;
 
         for (const [login, user] of Object.entries(db)) {
-            if (!user.chatId || !user.expiresAt) continue;
+            const expiresTimestamp = Number(user.expiresAt || 0);
+            if (!user.chatId || !expiresTimestamp) continue;
 
-            const timeLeft = user.expiresAt - now;
+            const timeLeft = expiresTimestamp - now;
             if (timeLeft <= 0) continue;
 
             const hoursLeft = timeLeft / (1000 * 60 * 60);
@@ -244,7 +246,7 @@ app.post('/api/auth/login', (req, res) => {
     const login = username ? username.trim().toLowerCase() : '';
     const user = db[login];
     if (!user || user.password !== password) return res.status(401).json({ success: false, message: 'Неверные данные' });
-    res.json({ success: true, username: login, expiresAt: user.expiresAt });
+    res.json({ success: true, username: login, expiresAt: Number(user.expiresAt || 0) });
 });
 
 app.get('/api/user/status/:username', (req, res) => {
@@ -252,7 +254,7 @@ app.get('/api/user/status/:username', (req, res) => {
     const login = req.params.username.toLowerCase();
     const user = db[login];
     if (!user) return res.status(404).json({ success: false, message: 'Пользователь не найден' });
-    res.json({ success: true, expiresAt: user.expiresAt, subUrl: `${BACKEND_URL}/api/sub/${login}` });
+    res.json({ success: true, expiresAt: Number(user.expiresAt || 0), subUrl: `${BACKEND_URL}/api/sub/${login}` });
 });
 
 // АДМИН API
@@ -277,7 +279,8 @@ app.post('/api/admin/create-sub', (req, res) => {
         db[login] = { password: 'auto_generated', expiresAt: 0, trialUsed: true };
     }
     const user = db[login];
-    const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
+    const expiresTimestamp = Number(user.expiresAt || 0);
+    const currentExpire = expiresTimestamp > Date.now() ? expiresTimestamp : Date.now();
     user.expiresAt = currentExpire + (parseInt(days) * 86400000);
     user.notified = {};
     saveDB(db);
@@ -292,7 +295,7 @@ app.post('/api/admin/set-expire', (req, res) => {
     const login = username.trim().toLowerCase();
     if (!db[login]) return res.status(404).json({ success: false });
 
-    db[login].expiresAt = parseInt(expiresAt);
+    db[login].expiresAt = Number(expiresAt);
     db[login].notified = {};
     saveDB(db);
     res.json({ success: true });
@@ -397,8 +400,11 @@ app.get('/api/sub/:username', (req, res) => {
         keysToSend.push(`${stub}#%E2%9A%A0%EF%B8%8F%20%D0%97%D0%B0%D0%B3%D0%BB%D1%83%D1%88%D0%BA%D0%B0`);
     }
 
-    if (user && Date.now() <= user.expiresAt) {
-        const expireSeconds = Math.floor(user.expiresAt / 1000);
+    // Приведение срока к числу
+    const expiresTimestamp = user ? Number(user.expiresAt || 0) : 0;
+
+    if (user && Date.now() <= expiresTimestamp) {
+        const expireSeconds = Math.floor(expiresTimestamp / 1000);
         const headers = [
             `#profile-update-interval: 1`,
             `#profile-title: 🏳️ FlorezokVPN\nЕсли не работают сервера, нажми обновить🔄`,
@@ -495,14 +501,15 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
             const db = loadDB();
             const user = db[username];
             const now = Date.now();
+            const expiresTimestamp = user ? Number(user.expiresAt || 0) : 0;
             const profileKb = {
                 inline_keyboard: [
                     [{ text: '🔑 Установить / Сменить пароль', callback_data: 'change_password' }]
                 ]
             };
 
-            if (user && now <= user.expiresAt) {
-                const daysLeft = Math.ceil((user.expiresAt - now) / 86400000);
+            if (user && now <= expiresTimestamp) {
+                const daysLeft = Math.ceil((expiresTimestamp - now) / 86400000);
                 const subUrl = `${BACKEND_URL}/api/sub/${username}`;
                 await sendTelegram(chatId, 
                     `👤 **Ваш аккаунт:** \`${username}\`\n` +
@@ -582,4 +589,3 @@ app.listen(PORT, '0.0.0.0', async () => {
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${BACKEND_URL}/bot${TELEGRAM_BOT_TOKEN}`);
     } catch(e) {}
 });
-
