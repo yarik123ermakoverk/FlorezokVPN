@@ -160,7 +160,6 @@ async function processPaymentCode(login, paymentId, chatId) {
     }
 }
 
-// --- ФОНОВАЯ ПРОВЕРКА ДЛЯ УВЕДОМЛЕНИЙ ---
 function startSubscriptionNotifier() {
     setInterval(async () => {
         usersDatabase = loadDB();
@@ -193,13 +192,10 @@ function startSubscriptionNotifier() {
             }
         }
 
-        if (updated) {
-            saveDB(usersDatabase);
-        }
+        if (updated) saveDB(usersDatabase);
     }, 60 * 1000);
 }
 
-// --- API САЙТА И АДМИНКИ ---
 app.get('/', (req, res) => res.send('OK'));
 
 app.post('/api/auth/register', (req, res) => {
@@ -255,18 +251,16 @@ app.post('/api/admin/create-sub', (req, res) => {
     res.json({ success: true });
 });
 
-app.post('/api/admin/update-user', (req, res) => {
+app.post('/api/admin/set-expire', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
-    const { username, days } = req.body;
+    const { username, expiresAt } = req.body;
     usersDatabase = loadDB();
     const login = username.trim().toLowerCase();
     if (!usersDatabase[login]) return res.status(404).json({ success: false });
-    const user = usersDatabase[login];
-    
-    const currentExpire = user.expiresAt > Date.now() ? user.expiresAt : Date.now();
-    user.expiresAt = currentExpire + parseInt(days) * 86400000;
-    user.notified = {};
+
+    usersDatabase[login].expiresAt = parseInt(expiresAt);
+    usersDatabase[login].notified = {};
     saveDB(usersDatabase);
     res.json({ success: true });
 });
@@ -322,7 +316,6 @@ app.get('/api/sub/:username', (req, res) => {
     return res.send([`#profile-update-interval: 1`, `#profile-title: ❌ Подписка истекла`].join('\n') + '\n\n' + globalExpiredKey);
 });
 
-// --- ВЕБХУК БОТА ---
 app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
     res.sendStatus(200);
     const update = req.body;
@@ -348,10 +341,8 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
         if (waitingPasswordUsers[chatId]) {
             const newPassword = text;
             delete waitingPasswordUsers[chatId];
-
             usersDatabase[username].password = newPassword;
             saveDB(usersDatabase);
-
             return await sendTelegram(chatId, `✅ **Пароль успешно сохранен!**\n\nТеперь вы можете входить на сайт под логином: \`${username}\` и новым паролем.`);
         }
 
@@ -395,9 +386,9 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
         } else if (text === '📖 Инструкция') {
             const instructionText = 
                 `📖 **Инструкция по подключению FlorezokVPN (Happ):**\n\n` +
-                `1. Зайдите в раздел **«👤 Мой профиль»** в боте и скопируйте вашу ссылку подписки.\n` +
+                `1. Зайдите в раздел **👤 Мой профиль** в боте и скопируйте вашу ссылку подписки.\n` +
                 `2. Откройте приложение **Happ**.\n` +
-                `3. В правом верхнем углу нажмите на **плюсик (\`+\`)**.\n` +
+                `3. В правом верхнем углу нажмите на **плюсик (+)**.\n` +
                 `4. Выберите пункт **«Вставить из буфера обмена»** и нажмите **Подключиться**.`;
             
             await sendTelegram(chatId, instructionText);
@@ -405,7 +396,6 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
             usersDatabase = loadDB();
             const user = usersDatabase[username];
             const now = Date.now();
-
             const profileKb = {
                 inline_keyboard: [
                     [{ text: '🔑 Установить / Сменить пароль', callback_data: 'change_password' }]
@@ -440,7 +430,6 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
                 if (result.success) {
                     usersDatabase[username].notified = {};
                     saveDB(usersDatabase);
-
                     await sendTelegram(chatId, 
                         `🎉 **ПОДПИСКА УСПЕШНО АКТИВИРОВАНА!**\n\n` +
                         `✅ Логин: \`${username}\`\n` +
