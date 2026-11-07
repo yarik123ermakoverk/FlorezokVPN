@@ -28,21 +28,33 @@ const SERVERS_FILE = path.join(__dirname, 'servers.json');
 
 const waitingPasswordUsers = {};
 
-// РЕЗЕРВНЫЙ БЭКАП НА СЛУЧАЙ СБРОСА КОНТЕЙНЕРА
-const DEFAULT_SERVERS = [
-    { id: '1', name: '🇷🇺 Россия', link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' }
-];
+// ГАРАНТИРОВАННАЯ ИНИЦИАЛИЗАЦИЯ ФАЙЛОВ ПРИ СТАРТЕ
+function initFiles() {
+    if (!fs.existsSync(DB_FILE)) {
+        fs.writeFileSync(DB_FILE, JSON.stringify({}, null, 2), 'utf8');
+    }
+    if (!fs.existsSync(PAYMENTS_FILE)) {
+        fs.writeFileSync(PAYMENTS_FILE, JSON.stringify([], null, 2), 'utf8');
+    }
+    if (!fs.existsSync(SETTINGS_FILE)) {
+        fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ stubKey: "" }, null, 2), 'utf8');
+    }
+    if (!fs.existsSync(SERVERS_FILE)) {
+        const initialServers = [
+            { id: '1', name: '🇷🇺 Россия', link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' }
+        ];
+        fs.writeFileSync(SERVERS_FILE, JSON.stringify(initialServers, null, 2), 'utf8');
+    }
+}
+initFiles();
 
 function loadDB() {
     try {
         if (fs.existsSync(DB_FILE)) {
             const data = fs.readFileSync(DB_FILE, 'utf8');
-            if (data && data.trim() !== '' && data.trim() !== '{}') {
-                return JSON.parse(data);
-            }
+            if (data && data.trim() !== '') return JSON.parse(data);
         }
     } catch (e) {}
-    // Если файла нет или он пустой — возвращаем пустой объект, но также проверяем, не нужно ли создать
     return {};
 }
 
@@ -84,25 +96,15 @@ function loadServers() {
     try {
         if (fs.existsSync(SERVERS_FILE)) {
             const data = fs.readFileSync(SERVERS_FILE, 'utf8');
-            if (data && data.trim() !== '' && data.trim() !== '[]') {
-                return JSON.parse(data);
-            }
+            if (data && data.trim() !== '') return JSON.parse(data);
         }
     } catch (e) {}
-    
-    // Если файл серверов стерся при деплое — восстанавливаем дефолтные
-    saveServers(DEFAULT_SERVERS);
-    return DEFAULT_SERVERS;
+    return [];
 }
 
 function saveServers(servers) {
     try { fs.writeFileSync(SERVERS_FILE, JSON.stringify(servers, null, 2), 'utf8'); } catch (e) {}
 }
-
-let usersDatabase = loadDB();
-let usedPayments = loadUsedPayments();
-let appSettings = loadSettings();
-let serversList = loadServers();
 
 let globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF";
 
@@ -123,7 +125,7 @@ async function sendTelegram(chatId, text, replyMarkup = null) {
 }
 
 function grantTrial(username, chatId) {
-    usersDatabase = loadDB(); // подгружаем актуальные данные перед записью
+    let usersDatabase = loadDB();
     const userKey = username.toLowerCase();
     
     if (!usersDatabase[userKey]) {
@@ -149,7 +151,7 @@ function grantTrial(username, chatId) {
 }
 
 async function processPaymentCode(login, paymentId, chatId) {
-    usedPayments = loadUsedPayments();
+    let usedPayments = loadUsedPayments();
     if (usedPayments.includes(paymentId)) {
         return { success: false, message: '❌ Этот код платежа уже был активирован!' };
     }
@@ -178,7 +180,7 @@ async function processPaymentCode(login, paymentId, chatId) {
         usedPayments.push(paymentId);
         saveUsedPayments(usedPayments);
 
-        usersDatabase = loadDB();
+        let usersDatabase = loadDB();
         const userKey = login.toLowerCase();
         if (!usersDatabase[userKey]) {
             usersDatabase[userKey] = { password: 'auto_generated', expiresAt: 0 };
@@ -200,7 +202,7 @@ async function processPaymentCode(login, paymentId, chatId) {
 
 function startSubscriptionNotifier() {
     setInterval(async () => {
-        usersDatabase = loadDB();
+        let usersDatabase = loadDB();
         const now = Date.now();
         let updated = false;
 
@@ -237,7 +239,7 @@ function startSubscriptionNotifier() {
 app.get('/', (req, res) => res.send('OK'));
 
 app.post('/api/auth/register', (req, res) => {
-    usersDatabase = loadDB();
+    let usersDatabase = loadDB();
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ success: false, message: 'Заполните поля' });
     const login = username.trim().toLowerCase();
@@ -248,7 +250,7 @@ app.post('/api/auth/register', (req, res) => {
 });
 
 app.post('/api/auth/login', (req, res) => {
-    usersDatabase = loadDB();
+    let usersDatabase = loadDB();
     const { username, password } = req.body;
     const login = username ? username.trim().toLowerCase() : '';
     const user = usersDatabase[login];
@@ -257,7 +259,7 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 app.get('/api/user/status/:username', (req, res) => {
-    usersDatabase = loadDB();
+    let usersDatabase = loadDB();
     const login = req.params.username.toLowerCase();
     const user = usersDatabase[login];
     if (!user) return res.status(404).json({ success: false, message: 'Пользователь не найден' });
@@ -268,9 +270,9 @@ app.get('/api/user/status/:username', (req, res) => {
 app.get('/api/admin/data', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
-    usersDatabase = loadDB();
-    appSettings = loadSettings();
-    serversList = loadServers();
+    let usersDatabase = loadDB();
+    let appSettings = loadSettings();
+    let serversList = loadServers();
     res.json({ success: true, users: usersDatabase, settings: appSettings, servers: serversList });
 });
 
@@ -278,7 +280,7 @@ app.post('/api/admin/create-sub', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { username, days } = req.body;
-    usersDatabase = loadDB();
+    let usersDatabase = loadDB();
     const login = username.trim().toLowerCase();
     if (!usersDatabase[login]) {
         usersDatabase[login] = { password: 'auto_generated', expiresAt: 0, trialUsed: true };
@@ -295,7 +297,7 @@ app.post('/api/admin/set-expire', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { username, expiresAt } = req.body;
-    usersDatabase = loadDB();
+    let usersDatabase = loadDB();
     const login = username.trim().toLowerCase();
     if (!usersDatabase[login]) return res.status(404).json({ success: false });
 
@@ -309,7 +311,7 @@ app.post('/api/admin/delete-user', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { username } = req.body;
-    usersDatabase = loadDB();
+    let usersDatabase = loadDB();
     const login = username.trim().toLowerCase();
     delete usersDatabase[login];
     saveDB(usersDatabase);
@@ -320,7 +322,7 @@ app.post('/api/admin/save-settings', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { stubKey } = req.body;
-    appSettings = { stubKey: stubKey || "" };
+    let appSettings = { stubKey: stubKey || "" };
     saveSettings(appSettings);
     res.json({ success: true });
 });
@@ -332,7 +334,7 @@ app.post('/api/admin/servers/add', (req, res) => {
     const { name, link } = req.body;
     if (!name || !link) return res.status(400).json({ success: false, message: 'Заполните название и ключ' });
     
-    serversList = loadServers();
+    let serversList = loadServers();
     const newServer = {
         id: Date.now().toString(),
         name: name.trim(),
@@ -347,7 +349,7 @@ app.post('/api/admin/servers/edit', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { id, name, link } = req.body;
-    serversList = loadServers();
+    let serversList = loadServers();
     
     const s = serversList.find(x => x.id === id);
     if (!s) return res.status(404).json({ success: false, message: 'Сервер не найден' });
@@ -363,7 +365,7 @@ app.post('/api/admin/servers/delete', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
     const { id } = req.body;
-    serversList = loadServers();
+    let serversList = loadServers();
     
     serversList = serversList.filter(x => x.id !== id);
     saveServers(serversList);
@@ -379,9 +381,9 @@ app.post('/api/activate-code', async (req, res) => {
 
 // ГЕНЕРАЦИЯ ПОДПИСКИ
 app.get('/api/sub/:username', (req, res) => {
-    usersDatabase = loadDB();
-    appSettings = loadSettings();
-    serversList = loadServers();
+    let usersDatabase = loadDB();
+    let appSettings = loadSettings();
+    let serversList = loadServers();
     const login = req.params.username.trim().toLowerCase();
     const user = usersDatabase[login];
     res.set('Content-Type', 'text/plain; charset=utf-8');
@@ -437,7 +439,7 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
         if (!text) return;
 
-        usersDatabase = loadDB();
+        let usersDatabase = loadDB();
         if (!usersDatabase[username]) {
             usersDatabase[username] = { password: 'auto_generated', expiresAt: 0, trialUsed: false, chatId: chatId };
         } else {
@@ -500,7 +502,7 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
             
             await sendTelegram(chatId, instructionText);
         } else if (text === '👤 Мой профиль') {
-            usersDatabase = loadDB();
+            let usersDatabase = loadDB();
             const user = usersDatabase[username];
             const now = Date.now();
             const profileKb = {
@@ -535,8 +537,11 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
 
                 const result = await processPaymentCode(username, paymentId, chatId);
                 if (result.success) {
-                    usersDatabase[username].notified = {};
-                    saveDB(usersDatabase);
+                    let usersDatabase = loadDB();
+                    if (usersDatabase[username]) {
+                        usersDatabase[username].notified = {};
+                        saveDB(usersDatabase);
+                    }
                     await sendTelegram(chatId, 
                         `🎉 **ПОДПИСКА УСПЕШНО АКТИВИРОВАНА!**\n\n` +
                         `✅ Логин: \`${username}\`\n` +
