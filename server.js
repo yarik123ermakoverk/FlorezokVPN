@@ -28,9 +28,8 @@ const SERVERS_FILE = path.join(__dirname, 'servers.json');
 
 const waitingPasswordUsers = {};
 
-// ГАРАНТИЯ СОХРАНЕНИЯ: создаем файлы ТОЛЬКО ЕСЛИ ИХ ВООБЩЕ НЕТ.
-// Если файлы уже существуют на сервере (даже после обновления code.js), они НЕ ЗАТИРАЮТСЯ!
-function initFilesOnce() {
+// АВТОМАТИЧЕСКОЕ СОЗДАНИЕ ФАЙЛОВ ПРИ ИХ ОТСУТСТВИИ
+function initMissingFiles() {
     if (!fs.existsSync(DB_FILE)) {
         fs.writeFileSync(DB_FILE, JSON.stringify({}, null, 2), 'utf8');
     }
@@ -41,13 +40,13 @@ function initFilesOnce() {
         fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ stubKey: "" }, null, 2), 'utf8');
     }
     if (!fs.existsSync(SERVERS_FILE)) {
-        const initialServers = [
+        const defaultServers = [
             { id: '1', name: '🇷🇺 Россия', link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' }
         ];
-        fs.writeFileSync(SERVERS_FILE, JSON.stringify(initialServers, null, 2), 'utf8');
+        fs.writeFileSync(SERVERS_FILE, JSON.stringify(defaultServers, null, 2), 'utf8');
     }
 }
-initFilesOnce();
+initMissingFiles();
 
 function loadDB() {
     try {
@@ -112,7 +111,7 @@ function saveServers(servers) {
     try { fs.writeFileSync(SERVERS_FILE, JSON.stringify(servers, null, 2), 'utf8'); } catch (e) {}
 }
 
-const globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF";
+const globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%91%D0%9B%D0%A1%D0%AF";
 
 async function sendTelegram(chatId, text, replyMarkup = null) {
     try {
