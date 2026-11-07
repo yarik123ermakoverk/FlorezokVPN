@@ -76,14 +76,13 @@ function saveSettings(settings) {
     try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8'); } catch (e) {}
 }
 
-// ЖЕСТКОЕ СОХРАНЕНИЕ СЕРВЕРОВ ИЗ АДМИНКИ БЕЗ СБРОСОВ
 function loadServers() {
     try {
         if (fs.existsSync(SERVERS_FILE)) {
             const data = fs.readFileSync(SERVERS_FILE, 'utf8');
             if (data && data.trim() !== '') {
                 const parsed = JSON.parse(data);
-                if (Array.isArray(parsed)) return parsed;
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
             }
         }
     } catch (e) {}
@@ -385,12 +384,14 @@ app.get('/api/sub/:username', (req, res) => {
     let keysToSend = [];
     
     for (const s of servers) {
-        let cleanLink = s.link;
+        if (!s.link) continue;
+        let cleanLink = s.link.trim();
         const hashIdx = cleanLink.indexOf('#');
         if (hashIdx !== -1) {
             cleanLink = cleanLink.substring(0, hashIdx);
         }
-        const encodedName = encodeURIComponent(s.name);
+        const serverName = s.name ? s.name.trim() : 'Сервер';
+        const encodedName = encodeURIComponent(serverName);
         keysToSend.push(`${cleanLink}#${encodedName}`);
     }
     
@@ -588,4 +589,4 @@ app.listen(PORT, '0.0.0.0', async () => {
     try {
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${BACKEND_URL}/bot${TELEGRAM_BOT_TOKEN}`);
     } catch(e) {}
-
+});
