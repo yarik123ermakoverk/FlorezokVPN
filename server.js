@@ -384,13 +384,13 @@ app.get('/api/sub/:username', (req, res) => {
     let keysToSend = [];
     
     for (const s of servers) {
-        if (!s.link) continue;
-        let cleanLink = s.link.trim();
+        if (!s || !s.link) continue;
+        let cleanLink = String(s.link).trim();
         const hashIdx = cleanLink.indexOf('#');
         if (hashIdx !== -1) {
             cleanLink = cleanLink.substring(0, hashIdx);
         }
-        const serverName = s.name ? s.name.trim() : 'Сервер';
+        const serverName = s.name ? String(s.name).trim() : 'Сервер';
         const encodedName = encodeURIComponent(serverName);
         keysToSend.push(`${cleanLink}#${encodedName}`);
     }
@@ -541,7 +541,7 @@ app.post(`/bot${TELEGRAM_BOT_TOKEN}`, async (req, res) => {
                         saveDB(db);
                     }
                     await sendTelegram(chatId, 
-                        `🎉 **ПОДПИСКА УСПЕШНО АКТИВИРОВАНА!**\n\n` +
+                        `🎉 **ПОДПИСКА УСПЕШНО АКТИВИРОВААНА!**\n\n` +
                         `✅ Логин: \`${username}\`\n` +
                         `⏳ Добавлено дней: **${result.days}**\n\n` +
                         `🔗 **Ваша ссылка подписки:**\n\`${result.subUrl}\``
