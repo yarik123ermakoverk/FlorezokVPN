@@ -19,10 +19,10 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-// --- БАЗА ДАННЫХ В ПАМЯТИ (НЕ ЗАВИСИТ ОТ ФАЙЛОВ) ---
+// ПОСТОЯННАЯ БАЗА ДАННЫХ В ПАМЯТИ (НЕ СГОРАЕТ ПРИ ОБНОВЛЕНИЯХ СКРИПТА)
 let memoryDB = {
     users: {
-        // Здесь будут храниться пользователи (например, админ или тестовый юзер)
+        "samaevka13": { password: "auto_generated", expiresAt: Date.now() + (30 * 86400000), trialUsed: true }
     },
     servers: [
         { 
@@ -36,7 +36,7 @@ let memoryDB = {
 };
 
 const waitingPasswordUsers = {};
-const globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%9B%D0%A1%D0%AF";
+const globalExpiredKey = "vless://00000000-0000-0000-0000-000000000000@expired.florezok.net:443?encryption=none&type=tcp#%E2%9D%8C%20%D0%A2%D0%90%D0%A0%D0%98%D0%A4%20%D0%97%D0%90%D0%9A%D0%9E%D0%9D%D0%A7%D0%98%D0%91%D0%9B%D0%A1%D0%AF";
 
 async function sendTelegram(chatId, text, replyMarkup = null) {
     try {
@@ -255,7 +255,7 @@ app.post('/api/activate-code', async (req, res) => {
     res.json(result);
 });
 
-// ГЕНЕРАЦИЯ ПОДПИСКИ
+// ГЕНЕРАЦИЯ ПОДПИСКИ (ОДТЁТ ВСЕ СЕРВЕРЫ ИЗ АДМИНКИ)
 app.get('/api/sub/:username', (req, res) => {
     const login = req.params.username.trim().toLowerCase();
     const user = memoryDB.users[login];
