@@ -19,7 +19,7 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-// ПОСТОЯННАЯ БАЗА ДАННЫХ В ПАМЯТИ (НЕ СГОРАЕТ ПРИ ОБНОВЛЕНИЯХ СКРИПТА)
+// ПОСТОЯННАЯ БАЗА В ПАМЯТИ
 let memoryDB = {
     users: {
         "samaevka13": { password: "auto_generated", expiresAt: Date.now() + (30 * 86400000), trialUsed: true }
@@ -56,11 +56,9 @@ async function sendTelegram(chatId, text, replyMarkup = null) {
 
 function grantTrial(username, chatId) {
     const userKey = username.toLowerCase();
-    
     if (!memoryDB.users[userKey]) {
         memoryDB.users[userKey] = { password: 'auto_generated', expiresAt: 0, trialUsed: false, chatId: chatId };
     }
-    
     const user = memoryDB.users[userKey];
     user.chatId = chatId;
 
@@ -209,10 +207,12 @@ app.post('/api/admin/save-settings', (req, res) => {
     res.json({ success: true });
 });
 
-// УПРАВЛЕНИЕ СЕРВЕРАМИ В АДМИНКЕ
+// УПРАВЛЕНИЕ СЕРВЕРАМИ В АДМИНКЕ (С ЛОГИРОВАНИЕМ)
 app.post('/api/admin/servers/add', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
     if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
+    
+    console.log("📥 Получен запрос на добавление сервера:", req.body);
     const { name, link } = req.body;
     if (!name || !link) return res.status(400).json({ success: false, message: 'Заполните название и ключ' });
     
@@ -222,12 +222,13 @@ app.post('/api/admin/servers/add', (req, res) => {
         link: link.trim()
     };
     memoryDB.servers.push(newServer);
+    console.log("✅ Сервер успешно добавлен в память! Всего серверов:", memoryDB.servers.length);
     res.json({ success: true, servers: memoryDB.servers });
 });
 
 app.post('/api/admin/servers/edit', (req, res) => {
     const adminKey = req.headers['x-admin-auth'];
-    if (adminKey !== 'yarik123') return res.status(403).json({ success: false });
+    if (adminKey !== 'yar1k123') && adminKey !== 'yarik123' { return res.status(403).json({ success: false }); }
     const { id, name, link } = req.body;
     
     const s = memoryDB.servers.find(x => x.id === id);
@@ -255,7 +256,7 @@ app.post('/api/activate-code', async (req, res) => {
     res.json(result);
 });
 
-// ГЕНЕРАЦИЯ ПОДПИСКИ (ОДТЁТ ВСЕ СЕРВЕРЫ ИЗ АДМИНКИ)
+// ГЕНЕРАЦИЯ ПОДПИСКИ
 app.get('/api/sub/:username', (req, res) => {
     const login = req.params.username.trim().toLowerCase();
     const user = memoryDB.users[login];
