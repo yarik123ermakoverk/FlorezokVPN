@@ -76,13 +76,14 @@ function saveSettings(settings) {
     try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8'); } catch (e) {}
 }
 
+// ЖЕСТКОЕ СОХРАНЕНИЕ СЕРВЕРОВ ИЗ АДМИНКИ БЕЗ СБРОСОВ
 function loadServers() {
     try {
         if (fs.existsSync(SERVERS_FILE)) {
             const data = fs.readFileSync(SERVERS_FILE, 'utf8');
             if (data && data.trim() !== '') {
                 const parsed = JSON.parse(data);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (Array.isArray(parsed)) return parsed;
             }
         }
     } catch (e) {}
@@ -400,7 +401,6 @@ app.get('/api/sub/:username', (req, res) => {
         keysToSend.push(`${stub}#%E2%9A%A0%EF%B8%8F%20%D0%97%D0%B0%D0%B3%D0%BB%D1%83%D1%88%D0%BA%D0%B0`);
     }
 
-    // Приведение срока к числу
     const expiresTimestamp = user ? Number(user.expiresAt || 0) : 0;
 
     if (user && Date.now() <= expiresTimestamp) {
