@@ -28,24 +28,28 @@ const SERVERS_FILE = path.join(__dirname, 'servers.json');
 
 const waitingPasswordUsers = {};
 
+// РЕЗЕРВНЫЙ БЭКАП НА СЛУЧАЙ СБРОСА КОНТЕЙНЕРА
+const DEFAULT_SERVERS = [
+    { id: '1', name: '🇷🇺 Россия', link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' }
+];
+
 function loadDB() {
     try {
         if (fs.existsSync(DB_FILE)) {
             const data = fs.readFileSync(DB_FILE, 'utf8');
-            if (data && data.trim() !== '') return JSON.parse(data);
+            if (data && data.trim() !== '' && data.trim() !== '{}') {
+                return JSON.parse(data);
+            }
         }
-    } catch (e) {
-        console.error("Ошибка чтения DB_FILE:", e);
-    }
+    } catch (e) {}
+    // Если файла нет или он пустой — возвращаем пустой объект, но также проверяем, не нужно ли создать
     return {};
 }
 
 function saveDB(db) {
     try { 
         fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8'); 
-    } catch (e) {
-        console.error("Ошибка записи DB_FILE:", e);
-    }
+    } catch (e) {}
 }
 
 function loadUsedPayments() {
@@ -80,15 +84,15 @@ function loadServers() {
     try {
         if (fs.existsSync(SERVERS_FILE)) {
             const data = fs.readFileSync(SERVERS_FILE, 'utf8');
-            if (data && data.trim() !== '') return JSON.parse(data);
+            if (data && data.trim() !== '' && data.trim() !== '[]') {
+                return JSON.parse(data);
+            }
         }
     } catch (e) {}
     
-    const initial = [
-        { id: '1', name: '🇷🇺 Россия', link: 'vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&encryption=none&security=reality&sni=qq.utiltools.site&fp=chrome&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI&type=tcp&headerType=none' }
-    ];
-    saveServers(initial);
-    return initial;
+    // Если файл серверов стерся при деплое — восстанавливаем дефолтные
+    saveServers(DEFAULT_SERVERS);
+    return DEFAULT_SERVERS;
 }
 
 function saveServers(servers) {
@@ -119,7 +123,7 @@ async function sendTelegram(chatId, text, replyMarkup = null) {
 }
 
 function grantTrial(username, chatId) {
-    usersDatabase = loadDB();
+    usersDatabase = loadDB(); // подгружаем актуальные данные перед записью
     const userKey = username.toLowerCase();
     
     if (!usersDatabase[userKey]) {
